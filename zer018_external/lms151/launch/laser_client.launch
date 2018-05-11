@@ -1,0 +1,6 @@
+<launch>
+  <node pkg = "lms_client" type="lms_client" name="lms_client"/>
+  <node pkg = "lms1xx" type="LMS1xx_node" name="lms1xx"/>
+  <node pkg = "map_generator" type="map_gen" name ="map_generator" args="true true" output="screen"/>
+  <node pkg = "lane_perception_placeholder" type="lane_placeholder_node" name ="lane_perception_placeholder" output="screen"/>
+</launch>

@@ -1,0 +1,23 @@
+x
+
+x_lpf
+
+x_lpf(t) = x_lpf(t-1)(1-alpha) + x(t)*alpha
+
+alpha = dT / (dT+ dT_cutoff)
+
+1000Hz
+dT_cutoff = 0.001
+
+0.05 / 0.051 ~ 1
+
+5Hz
+0.05 / 0.25 = 0.2
+
+10Hz
+0.05 / 0.15
+
+
+0 0 0 1 1 1 1
+
+0 0 0 0.33 0.66 1 1

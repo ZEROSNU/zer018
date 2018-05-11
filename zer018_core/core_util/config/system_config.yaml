@@ -1,0 +1,37 @@
+%YAML 1.0
+
+#Vehicle
+Vehicle.width: 1.6
+Vehicle.length: 2.6
+Vehicle.wheelbase: 1.6
+Vehicle.length_front: 0.8
+Vehicle.length_rear: 0.8 #length_rear + length_front = wheelbase
+Vehicle.cm_lidar_dist: 1.0
+#Road
+Road.lanewidth: 3.0
+
+#Camera
+
+#Map
+Map.width: 200
+Map.height: 200
+#TODO Change this
+Map.resolution: 0.03  #m/pix
+
+
+
+Map.obstacle.paddingx: 1 #for occupancy_map_raw rect arount occupied points
+Map.obstacle.paddingy: 1 #for occupancy_map_raw rect arount occupied points
+Map.obstacle.safex: 22 #for occupancy_map ellipse arount occupied points
+Map.obstacle.safey: 30 #for occupancy_map ellipse arount occupied points
+Map.obstacle.min_range: 0.5
+Map.obstacle.max_range: 3.5
+# Map.obstacle.max_range: 1.5
+Map.obstacle.min_theta: -10
+Map.obstacle.max_theta: 190
+Map.obstacle.estop_min_theta: 75
+Map.obstacle.estop_max_theta: 105
+Map.obstacle.estop_range_threshold: 0.7
+
+#Path Plan
+Path.headings: 12

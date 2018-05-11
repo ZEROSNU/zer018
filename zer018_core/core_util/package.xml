@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>core_util</name>
+  <version>0.0.0</version>
+  <description>zer018 core_util package</description>
+  <maintainer email="jhchoi0709@gmail.com">snuzero</maintainer>
+  <license>TODO</license>
+  <buildtool_depend>catkin</buildtool_depend>
+</package>
