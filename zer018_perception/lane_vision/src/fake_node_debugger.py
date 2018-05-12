@@ -16,9 +16,10 @@ NO IMAGE RECORDING
 # Node to obtain call camera data. Separate I/O pipeline
 rospy.loginfo('Init Node...')
 
+MYCOMPUTER = True
 
 def imagePublisher():
-    count = 100
+    count = 0
 
     warp_pub = rospy.Publisher('warped_image', Image, queue_size=1)
     rospy.init_node('camera_node_warp', anonymous=True)
@@ -26,8 +27,10 @@ def imagePublisher():
     bridge = CvBridge()
 
     while not rospy.is_shutdown():
-        
-        path = '/home/snuzero/test day1 data/7/' + str(count) + '.jpg'
+        if MYCOMPUTER:
+            path = '/home/dongwan/8/' + str(count) + '.jpg'
+        else: 
+            path = '/home/snuzero/day2_park1/' + str(count) + '.jpg'
         summed_image = cv2.imread(path)
         cv2.imshow('summed_image', summed_image)
         summed_image = bridge.cv2_to_imgmsg(summed_image, "bgr8")
