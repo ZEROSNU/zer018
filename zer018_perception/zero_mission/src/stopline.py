@@ -16,11 +16,17 @@ import rospkg
 
 #DEBUG MODE : True / False
 Z_DEBUG = True
+Z_BLUE_MASKING = False
 USE_HoughLines = False #HoughLines : True / HoughLinesP : False
 
 lower_white_hsv = np.array([0,0,220], np.uint8)
 upper_white_hsv = np.array([255,50,255], np.uint8)
 
+####BLUE####!!!!!!!!!!!
+if Z_BLUE_MASKING:
+    lower_white_hsv = np.array([90,50,120], np.uint8)
+    upper_white_hsv = np.array([140,255,255], np.uint8)
+############!!!!!!!!!!!
 ANGLE_THRESHOLD = 20 #angle difference (DEGREE)
 
 MIN_DETECTED_THRESHOLD = 3 #for HoughLines
@@ -39,7 +45,7 @@ bridge = CvBridge()
 def reject_outliers(data):
     u = np.mean(data)
     s = np.std(data)
-    filtered = [e for e in data if (u - 1.5 * s < e < u + 1.5 * s)]
+    filtered = [e for e in data if (u - 1 * s < e < u + 1 * s)]
     return filtered
 
 def GaussianBlur(img, kernel_size):
@@ -124,10 +130,12 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
         if Z_DEBUG:
             print detect_count
             pass
+        
         if detect_count >= MIN_DETECTED_THRESHOLD_P:
             filtered_x_points = reject_outliers(detected_points_x)
-            cv2.circle(img, (int(np.mean(filtered_x_points)), 300),3,(255,0,0),3,1)
-            cv2.circle(img, (int(np.mean(filtered_x_points)-100), 300),3,(0,255,0),3,1)    
+            
+            cv2.circle(img, (int(np.mean(filtered_x_points)), int(np.shape(img)[0]/2)),3,(255,0,0),3,1)
+            #cv2.circle(img, (int(np.mean(filtered_x_points)-100), 300),3,(0,255,0),3,1)    
             detected = True
         else:
             detected = False
@@ -144,6 +152,9 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
 def callback(data):
     init_time = time.time()
     img = bridge.imgmsg_to_cv2(data, "bgr8")
+    img = img[150:450,200:400]
+
+ 
     img = GaussianBlur(img, 5)
     hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
