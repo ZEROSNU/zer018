@@ -5,13 +5,13 @@ from core_msgs.msg import PathArray
 from core_msgs.msg import CenPoint
 from core_msgs.msg import VehicleState
 from core_msgs.msg import Control
+from core_msgs.msg import Estop
 from geometry_msgs.msg import Vector3
 from std_msgs.msg import Int32
 
 state = VehicleState()
 state.speed = 1.5
 state.steer = 20.0
-
 def callback_s(data) :
   state.speed = data.speed
   state.steer = data.steer
@@ -20,7 +20,7 @@ def test_map_gen() :
   pub_s = rospy.Publisher('/sPath', PathArray, queue_size = 10)
   pub_f = rospy.Publisher('/flag_obstacle', Int32, queue_size = 10)
   pub_state = rospy.Publisher('/vehicle_state',VehicleState, queue_size = 10)
-  pub_em = rospy.Publisher('/emergency_stop', Int32, queue_size = 10)
+  pub_em = rospy.Publisher('/emergency_stop', Estop, queue_size = 10)
 
 
   #sub_state = rospy.Subscriber('/control', Control, callback_s)
@@ -28,6 +28,7 @@ def test_map_gen() :
 
   rate = rospy.Rate(20) #1Hz
   time=0
+  state_count = 0
   while not rospy.is_shutdown():
     time+=1
     path = PathArray()
@@ -47,8 +48,10 @@ def test_map_gen() :
 #    rospy.loginfo(path)
     #pub_c.publish(point) #publishing cpoint
 #    rospy.loginfo(state)
+    state.header.stamp = rospy.Time.now()
     pub_state.publish(state) #publishing state
-
+    state_count+=1
+    rospy.set_param('state_count', state_count)
     #if time%4==0:
       #pub_s.publish(path)
 #      rospy.loginfo(path)

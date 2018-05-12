@@ -10,7 +10,7 @@ from cv_bridge import CvBridge, CvBridgeError
 bridge = CvBridge()
 
 def callback(msg):
-    img = bridge.imgmsg_to_cv2(msg, "bgr8")
+    img = bridge.imgmsg_to_cv2(msg, "rgb8")
     cv2.imshow('monitor', img)
     cv2.waitKey(1)
 

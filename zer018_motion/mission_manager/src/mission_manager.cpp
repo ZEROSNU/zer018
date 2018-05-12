@@ -44,13 +44,13 @@ int main(int argc, char** argv)
       if(client_of_path_tracker.call(srv) && srv.response.is_confirmed) {
         z_print("successfully asked Path Tracker to pursue to the parking lot goalpoints");
       }
-    }
-    else if(park_mode == 3) {
-      srv.request.toggle = true;
       if(client_of_lane_detector.call(srv) && srv.response.is_confirmed) {
         z_print("successfully asked Lane Detector to stop looking for park_initpoints and goalpoints");
       }
     }
+    // else if(park_mode == 3) {
+    //   srv.request.toggle = true;
+    // }
     ros::spinOnce();
     loop_rate.sleep();
   }

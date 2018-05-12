@@ -3,6 +3,7 @@ project(zero_monitor)
 
 find_package(catkin REQUIRED COMPONENTS
   core_msgs
+  core_util
   roscpp
   sensor_msgs
   std_msgs
@@ -11,7 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 catkin_package(
 #  LIBRARIES zero_monitor
-  CATKIN_DEPENDS core_msgs roscpp sensor_msgs image_transport roscpp sensor_msgs std_msgs
+  CATKIN_DEPENDS core_msgs core_util roscpp sensor_msgs image_transport roscpp sensor_msgs std_msgs
 #  DEPENDS system_lib
 )
 

@@ -6,5 +6,5 @@
 
   <node pkg = "lane_perception_placeholder" type="lane_placeholder_node" name ="lane_perception_placeholder"/>
   <node name="astar_planner" pkg="astar_planner" type="path_planner" output="screen"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" output="screen"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args = "false false" output="screen"/>
 </launch>

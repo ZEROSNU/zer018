@@ -28,6 +28,7 @@ def init():
     rospy.init_node('serial_com', anonymous=True)
     rate = rospy.Rate(50)
     msg = VehicleState() #define msg - current platform state
+    state_count = 0
 
     while True:
         with serial.Serial(port='/dev/ttyUSB0',
@@ -39,9 +40,10 @@ def init():
 
             while not rospy.is_shutdown():
                 msg=MsgUpdate(msg,ser)
+                state_count += 1
+                rospy.set_param('state_count',state_count)
                 rospy.loginfo(msg)
                 pub.publish(msg)
-
                 sendSerial(ser,control_data)
                 rate.sleep()
 
@@ -94,6 +96,7 @@ def MsgUpdate(msg,ser): #message about current sate (serial data : platform->upp
     if not isValidValue(speed, steer): return msg #in case of invalid speed or steer -> no update of msg
 
     #setting message variables
+    msg.header.stamp = rospy.Time.now()
     msg.is_auto = is_auto
     msg.estop = estop
     msg.gear = gear
@@ -156,7 +159,7 @@ class getControlData(): #input:speed(m/s), steer(degree) -> output: speed(km/h *
 	if (steer_high >= 256):
 	    steer_high = 255
 	if (steer_low >= 256):
-	    steer_low = 255        
+	    steer_low = 255
 
 	self.steer1 = steer_high
         self.steer2 = steer_low

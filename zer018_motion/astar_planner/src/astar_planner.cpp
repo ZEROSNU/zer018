@@ -85,7 +85,7 @@ void Astar::plan(geometry_msgs::PoseWithCovarianceStamped start, geometry_msgs::
       int depth = headings;
       int length = map_width * map_height * depth;
       // define list pointers and initialize lists
-      std::cout<<"length is "<<length<<std::endl;
+      // std::cout<<"length is "<<length<<std::endl;
       Node3D* nodes3D = new Node3D[length](); //200*200*12 = 480000
       Node2D* nodes2D = new Node2D[map_width * map_height]();
 
@@ -97,7 +97,7 @@ void Astar::plan(geometry_msgs::PoseWithCovarianceStamped start, geometry_msgs::
       float t = tf::getYaw(goal.pose.orientation);
       // set theta to a value (0,2PI]
       t = Helper::normalizeHeadingRad(t);
-      std::cout<<"goal heading in rad is "<<t<<std::endl;
+      // std::cout<<"goal heading in rad is "<<t<<std::endl;
       const Node3D nGoal(x, y, t, 0, 0, nullptr);
       // retrieving start position
       x = start.pose.pose.position.x;
@@ -105,14 +105,14 @@ void Astar::plan(geometry_msgs::PoseWithCovarianceStamped start, geometry_msgs::
       t = tf::getYaw(start.pose.pose.orientation);
       // set theta to a value (0,2PI]
       t = Helper::normalizeHeadingRad(t);
-      std::cout<<"start heading in rad is "<<t<<std::endl;
+      // std::cout<<"start heading in rad is "<<t<<std::endl;
 
       Node3D nStart(x, y, t, 0, 0, nullptr);
       // ___________
       // DEBUG START
       //    Node3D nStart(108.291, 30.1081, 0, 0, 0, nullptr);
 
-      std::cout<<"nStart and nGoal set up properly" <<std::endl;
+      // std::cout<<"nStart and nGoal set up properly" <<std::endl;
 
       // ___________________________
       // START AND TIME THE PLANNING
@@ -126,12 +126,12 @@ void Astar::plan(geometry_msgs::PoseWithCovarianceStamped start, geometry_msgs::
       smoothedPath.clear();
       // FIND THE PATH
       Node3D* nSolution = Algorithm::hybridAStar(nStart, nGoal, nodes3D, nodes2D, map_width, map_height, configurationSpace, dubinsLookup);
-      std::cout<<"nSolution is solved" <<std::endl;
+      // std::cout<<"nSolution is solved" <<std::endl;
 
       //DEBUG
       ros::Time plan_t1 = ros::Time::now();
       ros::Duration d1(plan_t1 - plan_t0);
-      std::cout << "Planning Time in ms: " << d1 * 1000 << std::endl;
+      // std::cout << "Planning Time in ms: " << d1 * 1000 << std::endl;
 
 
       if(nSolution==nullptr) std::cout<<"nSolution is Null Pointer" <<std::endl;
@@ -146,7 +146,7 @@ void Astar::plan(geometry_msgs::PoseWithCovarianceStamped start, geometry_msgs::
         smoothedPath.updatePath(smoother.getPath());
         ros::Time plan_t2 = ros::Time::now();
         ros::Duration d2(plan_t2 - plan_t1);
-        std::cout << "Smoothing Time in ms: " << d2 * 1000 << std::endl;
+        // std::cout << "Smoothing Time in ms: " << d2 * 1000 << std::endl;
 
         // _________________________________
         // PUBLISH THE RESULTS OF THE SEARCH
@@ -192,6 +192,7 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
 {
   if(Z_DEBUG && flag_obstacle!=0)  std::cout << "------------------------------------------------------------------" << std::endl;
   if(flag_obstacle==0) return;
+  // if()
   ros::Time map_time = msg_map->header.stamp; //the time when the map is recorded
   ros::Time t0 = ros::Time::now();
 
@@ -256,12 +257,12 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
   //setting start point
   //TODO: check how the plan() function use this start point
   //TODO: change this later according to it
-  std::cout<<"yaw_delta in rad is"<<yaw_delta<<std::endl;
+  // std::cout<<"yaw_delta in rad is"<<yaw_delta<<std::endl;
   start.pose.pose.position.y = map_width/2 - x_delay_shift;
   start.pose.pose.position.x = map_height - y_delay_shift; // x and y flips for the input of path planning
-  std::cout<<"start x and y is ("<<start.pose.pose.position.x<<", "<<start.pose.pose.position.y<<")"<<std::endl;
+  // std::cout<<"start x and y is ("<<start.pose.pose.position.x<<", "<<start.pose.pose.position.y<<")"<<std::endl;
   if(binMap[(int)(map_height-1 - y_delay_shift)][(int)(map_width/2 - x_delay_shift)]) {
-    std::cout<<"start x and y is in the occupied region"<<std::endl;
+    // std::cout<<"start x and y is in the occupied region"<<std::endl;
     return;
   }
 
@@ -276,24 +277,24 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
   goal.pose.position.x = target_x;
   tf::Quaternion q_goal = tf::createQuaternionFromRPY(0, 0, M_PI);
   tf::quaternionTFToMsg(q_goal,goal.pose.orientation);
-  std::cout<<"goal x and y is ("<<goal.pose.position.x<<", "<<goal.pose.position.y<<")"<<std::endl;
+  // std::cout<<"goal x and y is ("<<goal.pose.position.x<<", "<<goal.pose.position.y<<")"<<std::endl;
   if(binMap[target_x][target_y]) {
-    std::cout<<"goal x and y is in the occupied region"<<std::endl;
+    // std::cout<<"goal x and y is in the occupied region"<<std::endl;
     return;
   }
 
   if(!binMap[(int)(map_height-1 - y_delay_shift)][(int)(map_width/2 - x_delay_shift)] && !binMap[target_x][target_y]) {
-    std::cout << "start and goal set properly!! " << std::endl;
+    // std::cout << "start and goal set properly!! " << std::endl;
   }
 
   astar.plan(start, goal);
   drawMonitorMap(astar);
   ros::Time t2 = ros::Time::now();
   ros::Duration d_final(t2 - t0);
-  cout<<"the delay ground truth is: " <<d_final.toSec()<<" sec" <<endl;
+  // cout<<"the delay ground truth is: " <<d_final.toSec()<<" sec" <<endl;
 
   delay = 0.4 * 0.4 + delay * 0.36 + d_final.toSec() * 0.24;
-  cout<<"the delay for planning is: " <<delay<<" sec" <<endl;
+  // cout<<"the delay for planning is: " <<delay<<" sec" <<endl;
 }
 
 void callbackFlagObstacle(const std_msgs::Int32::ConstPtr & msg_flag_obstacle) {

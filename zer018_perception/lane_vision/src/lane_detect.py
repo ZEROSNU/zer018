@@ -14,7 +14,7 @@ BEST WORKING CODE
 '''
 
 # define values boundaries for color
-lower_yellow = np.array([15,40,100],np.uint8)
+lower_yellow = np.array([15,40,150],np.uint8)
 upper_yellow = np.array([40,255,255],np.uint8)
 # lower_white_hsv = np.array([0, 0, 150], np.uint8)
 lower_white_hsv = np.array([0,0,120], np.uint8)

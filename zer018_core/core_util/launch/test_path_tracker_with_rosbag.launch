@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="rosbag" type="play" name="player" args="--clock /home/snuzero/bagfiles/0511-18-02-38_without_control_and_path_tracking.bag"/>
+  <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py" output = "screen"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args= "true true"/>
+  <node name="republish" pkg = "image_transport" type = "republish" args = "compressed in:=/occupancy_map/compressed raw out:=/occupancy_map/rosbag"/>
+  <node name="monitor_window_for_rosbag" pkg="zero_monitor" type="monitor_window_for_rosbag.py"/>
+
+</launch>

@@ -4,7 +4,7 @@
   <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="true" output="screen"/>
   <!--<node pkg = "lane_perception_placeholder" type="lane_placeholder_node" name ="lane_perception_placeholder"/>-->
   <node name="astar_planner" pkg="astar_planner" type="path_planner" output="screen"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" output="screen" args="false"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" output="screen" args="false false"/>
   <node name="monitor_window" pkg="zero_monitor" type="monitor_window.py" output="screen"/>
   <node name="fake_camera_node" pkg="lane_vision" type="fake_camera_node.py"/>
   <node name="lane_detect" pkg="lane_vision" type="lane_detect.py"/>

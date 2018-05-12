@@ -15,6 +15,7 @@ add_message_files( DIRECTORY msg
   PathArray.msg
   CenPoint.msg
   Control.msg
+  Estop.msg
 )
 
 add_service_files(

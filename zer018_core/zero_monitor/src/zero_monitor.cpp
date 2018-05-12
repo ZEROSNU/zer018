@@ -18,7 +18,10 @@
 #include "core_msgs/VehicleState.h"
 #include "core_msgs/Control.h"
 #include "core_msgs/CenPoint.h"
+#include "core_msgs/Estop.h"
+#include "core_util/zdebug.h"
 #include "std_msgs/Int32.h"
+#include "std_msgs/Float32.h"
 #include "geometry_msgs/Pose2D.h"
 #include "geometry_msgs/Vector3.h"
 #include "sensor_msgs/CompressedImage.h"
@@ -27,6 +30,7 @@
 #include <boost/thread.hpp>
 
 bool MONITOR_DEBUG=false;
+bool USE_ROSBAG = false;
 
 struct vehicle_state {
   bool is_auto;
@@ -65,6 +69,8 @@ double pathtracking_timestamp;
 
 boost::mutex map_mutex_;
 int e_stop = 0;
+int spath_n = 0;
+float uturn_angle =0.0;
 
 void callbackLaneCam(const sensor_msgs::ImageConstPtr& msg_lane_cam)
 {
@@ -130,8 +136,16 @@ void callbackFlagObstacle(const std_msgs::Int32::ConstPtr & msg_flag_obstacle) {
   vState.flag_obstacle = msg_flag_obstacle->data;
 }
 
-void callbackEstop(const std_msgs::Int32::ConstPtr & msg_estop) {
-  e_stop = msg_estop->data;
+void callbackEstop(const core_msgs::Estop::ConstPtr & msg_estop) {
+  e_stop = msg_estop->estop;
+}
+
+void callbackSpathn(const std_msgs::Int32::ConstPtr & msg_lookahead_n) {
+  spath_n = msg_lookahead_n->data;
+}
+
+void callbackUturn(const std_msgs::Float32::ConstPtr & msg_uturn_angle) {
+  uturn_angle = msg_uturn_angle->data;
 }
 
 void callbackPath(const core_msgs::PathArrayConstPtr& msg_path_tracking)
@@ -170,16 +184,51 @@ void callbackTerminate(const std_msgs::Int32Ptr& record){
   return;
 }
 
+void drawPath(cv::Mat &canvas) {
+  if(vControl.control_mode == 2) {
+    std::cout<<"drawing path"<<std::endl;
+    for(int i= path_points.size()-1; i>=1;i--){
+      int start_x = (int)(2*path_points.at(i).x);
+      int start_y = (int)(2*path_points.at(i).y);
+      int end_x = (int)(2*path_points.at(i-1).x);
+      int end_y = (int)(2*path_points.at(i-1).y);
+      if(i == path_points.size()-spath_n) {
+          cv::line(canvas,cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(255,255,100),2);
+      }
+      else cv::line(canvas,cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100,255,100),2);
+    }
+  }
+  if(MONITOR_DEBUG && vControl.control_mode ==2) {
+    for(int i= path_points_update.size()-1; i>=1;i--){
+      int start_x = (int)(2*path_points_update.at(i).x);
+      int start_y = (int)(2*path_points_update.at(i).y);
+      int end_x = (int)(2*path_points_update.at(i-1).x);
+      int end_y = (int)(2*path_points_update.at(i-1).y);
+      cv::line(canvas,cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100,255,255),2);
+    }
+  }
+  else if(vControl.control_mode == 3) {
+    cv::line(canvas,cv::Point(map_width, map_height*2), cv::Point(map_width - 2*y_waypoint, map_height*2-2*x_waypoint), cv::Scalar(255,255,100),2);
+  }
+  else if(vControl.control_mode ==4) {
+    cv::line(canvas,cv::Point(map_width, map_height*2), cv::Point(map_width - 2*y_waypoint, map_height*2-2*x_waypoint), cv::Scalar(170,255,100),2);
+  }
+}
+
 int main(int argc, char** argv)
 {
   //argument setting initialization
-  if(argc < 2)  {
-      std::cout << "usage: rosrun zero_monitor z_monitor debug_mode" << std::endl;
+  if(argc < 3)  {
+      std::cout << "usage: rosrun zero_monitor z_monitor debug_mode for_rosbag" << std::endl;
       std::cout << "debug_mode is true for debug" << std::endl;
+      std::cout << "for_rosbag is true for monitoring rosbag files" << std::endl;
+
       return -1;
   }
 
   if (!strcmp(argv[1], "true")) MONITOR_DEBUG = true;
+  if (!strcmp(argv[2], "true")) USE_ROSBAG = true;
+
   std::string record_path = ros::package::getPath("core_util");
   //TODO: add date&time to the file name
   record_path += "/data/";
@@ -207,6 +256,9 @@ int main(int argc, char** argv)
   map_width = params_config["Map.width"];
   map_height = params_config["Map.height"];
   map_res = params_config["Map.resolution"];
+  int vehicle_width = params_config["Vehicle.width"];
+  int vehicle_length_front = params_config["Vehicle.length_front"];
+
   bool isVideoOpened =  outputMonitorVideo.open(record_path, CV_FOURCC('X', 'V', 'I', 'D'), 10, cv::Size(map_width*6, map_height*2+100), true);
 
   if(isVideoOpened)
@@ -221,80 +273,66 @@ int main(int argc, char** argv)
 
   ros::NodeHandle nh;
   image_transport::ImageTransport it(nh);
-  publishMonitorImg = it.advertise("/monitor",1);
+  if(!USE_ROSBAG) publishMonitorImg = it.advertise("/monitor",1);
+  else publishMonitorImg = it.advertise("/monitor_rosbag",1);
   msgMonitorImg.reset(new sensor_msgs::Image);
 
-  ros::Subscriber laneSub = nh.subscribe("/warped_image",1,callbackLaneCam);
-  ros::Subscriber occupancySub = nh.subscribe("/occupancy_map",1,callbackOccupancyMap);
-  ros::Subscriber occupancyRawSub = nh.subscribe("/occupancy_map_raw",1,callbackOccupancyRaw);
+  ros::Subscriber laneSub, occupancySub, occupancyRawSub;
+  if(!USE_ROSBAG) {
+    laneSub = nh.subscribe("/warped_image",1,callbackLaneCam);
+    occupancySub = nh.subscribe("/occupancy_map",1,callbackOccupancyMap);
+    occupancyRawSub = nh.subscribe("/occupancy_map_raw",1,callbackOccupancyRaw);
+  }
+  else {
+    laneSub = nh.subscribe("/warped_image",1,callbackLaneCam);
+    occupancySub = nh.subscribe("/occupancy_map/rosbag",1,callbackOccupancyMap);
+    occupancyRawSub = nh.subscribe("/occupancy_map_raw",1,callbackOccupancyRaw);
+  }
+
+
   ros::Subscriber pathSub, pathupdateSub;
   if(MONITOR_DEBUG){
     pathSub = nh.subscribe("/sPath",1,callbackPath);
     pathupdateSub = nh.subscribe("/path_tracking",1,callbackPathUpdate);
   }
   else pathSub = nh.subscribe("/path_tracking",1,callbackPath);
-  ros::Subscriber waypointSub = nh.subscribe("/waypoints",1,callbackWaypoint);
-  ros::Subscriber flagobstacleSub = nh.subscribe("/flag_obstacle",1,callbackFlagObstacle);
-  ros::Subscriber stateSub = nh.subscribe("/vehicle_state",1,callbackState);
-  ros::Subscriber controlSub = nh.subscribe("/control",1,callbackControl);
-  ros::Subscriber endSub = nh.subscribe("/end_system",1,callbackTerminate);
-  ros::Subscriber estopSub = nh.subscribe("/emergency_stop",1,callbackEstop);
 
+  ros::Subscriber waypointSub, flagobstacleSub, stateSub, controlSub, endSub, estopSub, spathnSub, uturnSub;
+  waypointSub = nh.subscribe("/waypoints",1,callbackWaypoint);
+  flagobstacleSub = nh.subscribe("/flag_obstacle",1,callbackFlagObstacle);
+  stateSub = nh.subscribe("/vehicle_state",1,callbackState);
+  controlSub = nh.subscribe("/control",1,callbackControl);
+  endSub = nh.subscribe("/end_system",1,callbackTerminate);
+  estopSub = nh.subscribe("/emergency_stop",1,callbackEstop);
+  spathnSub = nh.subscribe("/lookahead_n",1, callbackSpathn);
+  uturnSub = nh.subscribe("/uturn_angle",1,callbackUturn);
   vState.speed = 0;
   vState.steer = 0;
   if(MONITOR_DEBUG) vState.flag_obstacle = 1;
   else vState.flag_obstacle = 0;
   ros::Rate loop_rate(10);
+  ros::Time init_time = ros::Time::now();
   while(ros::ok()){
     //if(Z_DEBUG) std::cout<<"while loop starts!!"<<std::endl;
 
     //monitor initialization
     monitor_img = cv::Mat::zeros(map_height*2+100, map_width*6,CV_8UC3);
-    //if(Z_DEBUG) std::cout<<"monitor img created!!"<<std::endl;
-    //cv::imshow("occupancy map",occupancy_map);
 
     cv::Mat occupancy_map_resized = cv::Mat::zeros(map_height*2,map_width*2,CV_8UC3);
     cv::resize(occupancy_map, occupancy_map_resized, cv::Size(map_height*2,map_width*2),0,0);
-    //if(Z_DEBUG) std::cout<<"occupancy map resized!!"<<std::endl;
 
     cv::Mat lane_topview_resized = cv::Mat::zeros(map_height*2,map_width*2,CV_8UC3);
     cv::resize(lane_topview, lane_topview_resized, cv::Size(map_height*2,map_width*2),0,0);
-    //if(Z_DEBUG) std::cout<<"lane topview resized!!"<<std::endl;
 
+    //drawing waypoint
     cv::circle(state_monitor, cv::Point(map_width/2 - y_waypoint, map_height-x_waypoint),3,cv::Scalar(255,255,100), -1);
     cv::Mat state_monitor_resized = cv::Mat::zeros(map_height*2,map_width*2,CV_8UC3);
     cv::resize(state_monitor, state_monitor_resized, cv::Size(map_height*2,map_width*2),0,0);
     //if(Z_DEBUG) std::cout<<"state monitor resized!!"<<std::endl;
-
-    double path_delay_sec = ros::Time::now().toSec() - pathtracking_timestamp;
-    // if(vState.flag_obstacle > 0) {
-    if(path_delay_sec < 3.0 && vControl.control_mode == 2) {
-      std::cout<<"drawing path"<<std::endl;
-      for(int i= path_points.size()-1; i>=1;i--){
-        int start_x = (int)(2*path_points.at(i).x);
-        int start_y = (int)(2*path_points.at(i).y);
-        int end_x = (int)(2*path_points.at(i-1).x);
-        int end_y = (int)(2*path_points.at(i-1).y);
-        cv::line(state_monitor_resized,cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100,255,100),2);
-      }
-    }
-    if(MONITOR_DEBUG && vControl.control_mode ==2) {
-      for(int i= path_points_update.size()-1; i>=1;i--){
-        int start_x = (int)(2*path_points_update.at(i).x);
-        int start_y = (int)(2*path_points_update.at(i).y);
-        int end_x = (int)(2*path_points_update.at(i-1).x);
-        int end_y = (int)(2*path_points_update.at(i-1).y);
-        cv::line(state_monitor_resized,cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100,255,255),2);
-      }
-    }
-
-
-    else if(vControl.control_mode == 3) {
-      cv::line(state_monitor_resized,cv::Point(map_width, map_height*2), cv::Point(map_width - 2*y_waypoint, map_height*2-2*x_waypoint), cv::Scalar(255,255,100),2);
-    }
-    else if(vControl.control_mode ==4) {
-      cv::line(state_monitor_resized,cv::Point(map_width, map_height*2), cv::Point(map_width - 2*y_waypoint, map_height*2-2*x_waypoint), cv::Scalar(170,255,100),2);
-    }
+    drawPath(state_monitor_resized);
+    drawPath(lane_topview_resized);
+    z_print("MONITOR CAR BOUNDARY");
+    cv::rectangle(state_monitor_resized, cv::Point(map_width - vehicle_width/map_res, 2*map_height-1), cv::Point(map_width+vehicle_width/map_res, 2*map_height-1 - vehicle_length_front/map_res), cv::Scalar(150,150,200), -1);
 
     //TODO: save path image to other directory (in image files)
     ///add above three images to the monitor_img
@@ -305,7 +343,13 @@ int main(int argc, char** argv)
     occupancy_map_resized.copyTo(monitor_img(cv::Rect(lane_topview_resized.cols+state_monitor_resized.cols,0,occupancy_map_resized.cols,occupancy_map_resized.rows)));
     //if(Z_DEBUG) std::cout<<"occupancy map copied!!"<<std::endl;
     //TODO: add text info to the image
-    cv::putText(monitor_img, "vehicle state", cv::Point(20, map_height*2+10), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
+    int state_count;
+    nh.getParam("/state_count", state_count);
+    std::stringstream stream_state;
+    stream_state <<"vehicle state    count: " <<state_count;
+    std::string state_text =  stream_state.str();
+
+    cv::putText(monitor_img, state_text, cv::Point(20, map_height*2+10), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
     std::string basic_state = "";
     if(vState.is_auto) basic_state +="AUTO   ";
     else basic_state +="MANUAL ";
@@ -341,7 +385,15 @@ int main(int argc, char** argv)
     if(!vControl.estop) cv::putText(monitor_img, basic_control, cv::Point(20+map_width*4, map_height*2+30), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,150));
     else cv::putText(monitor_img, basic_control, cv::Point(20+map_width*4, map_height*2+30), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,100,100));
 
-    cv::putText(monitor_img, "control output", cv::Point(map_width*4+20, map_height*2+10), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
+
+
+    int control_count;
+    nh.getParam("/control_count", control_count);
+    std::stringstream stream_control;
+    stream_control <<"control output    count: " <<control_count;
+    std::string control_text =  stream_control.str();
+
+    cv::putText(monitor_img, control_text, cv::Point(map_width*4+20, map_height*2+10), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
     std::stringstream control;
     control << "v(km/h): " << std::fixed << std::setprecision(2) << 3.6*vControl.speed << "  steer(deg): "<<vControl.steer;
     std::stringstream control_brake;
@@ -365,10 +417,27 @@ int main(int argc, char** argv)
     else if(vControl.control_mode == 3) control_mode_text_color = cv::Scalar(255, 255, 100);
     else if(vControl.control_mode == 4) control_mode_text_color = cv::Scalar(170, 255, 100);
     else if(vControl.control_mode == 5 || vControl.control_mode ==6) control_mode_text_color = cv::Scalar(150, 150, 255);
+    std::stringstream add_stream;
+    if(vControl.control_mode == 5) add_stream <<"Uturn angle(deg): "<<std::fixed<< std::setprecision(2)<<uturn_angle;
+    else add_stream << "Obstacle Flag: " <<vState.flag_obstacle;
+    std::string add_text = add_stream.str();
+    cv::putText(monitor_img, add_text, cv::Point(map_width*2+20, map_height*2+60), cv::FONT_HERSHEY_PLAIN, 1.0, control_mode_text_color);
     cv::putText(monitor_img, "Control Mode", cv::Point(map_width*2+20, map_height*2+20), cv::FONT_HERSHEY_PLAIN, 1.0, control_mode_text_color);
     cv::putText(monitor_img, control_mode_text, cv::Point(map_width*2+20, map_height*2+40), cv::FONT_HERSHEY_PLAIN, 1.0, control_mode_text_color);
+
+
+    ros::Time current_time = ros::Time::now();
+    ros::Duration to_now(current_time - init_time);
+    std::stringstream time_stream;
+    time_stream << "execution time(sec): " << std::fixed << std::setprecision(2) << to_now.toSec();
+    std::string time_text = time_stream.str();
+    cv::putText(monitor_img, time_text, cv::Point(map_width*2+20, map_height*2+80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(100,100,255));
+
+
     //publishing monitor image
+    cv::cvtColor(monitor_img, monitor_img, cv::COLOR_BGR2RGB);
     msgMonitorImg = cv_bridge::CvImage(std_msgs::Header(),"rgb8", monitor_img).toImageMsg();
+
     publishMonitorImg.publish(msgMonitorImg);
 
     //adding it to the video record

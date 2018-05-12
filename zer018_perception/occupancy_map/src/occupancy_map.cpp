@@ -23,6 +23,8 @@
 //#include <thread>
 //TODO: Define and set core_msgs and their msg files listed here
 #include "core_msgs/ROIPointArray.h"
+#include "core_msgs/Estop.h"
+#include "core_util/zdebug.h"
 #include "std_msgs/Int32.h"
 #include "geometry_msgs/Pose2D.h"
 #include "geometry_msgs/Vector3.h"
@@ -44,6 +46,7 @@ cv::VideoWriter outputVideo;
 float lane_width;
 int map_width, map_height, paddingx, paddingy, safex, safey;
 float map_resol, map_offset, min_range, max_range, min_theta, max_theta; //this is equal to length from vehicle_cm to lidar
+float vehicle_width, vehicle_length;
 image_transport::Publisher publishMapImg;
 sensor_msgs::ImagePtr msgMapImg;
 
@@ -55,7 +58,7 @@ ros::Publisher target_publisher;
 std_msgs::Int32 msg_flag_obstacle;
 
 ros::Publisher emergency_publisher;
-std_msgs::Int32 msg_emergency_stop;
+core_msgs::Estop msg_emergency_stop;
 int estop_count = 0;
 const int estop_count_threshold = 10;
 int estop_angle_min, estop_angle_max; //deg
@@ -98,6 +101,10 @@ void mapInit(cv::FileStorage& params_config) {
   estop_angle_max = params_config["Map.obstacle.estop_max_theta"];
   estop_angle_min = params_config["Map.obstacle.estop_min_theta"];
   estop_range_threshold = params_config["Map.obstacle.estop_range_threshold"];
+
+  vehicle_width = params_config["Vehicle.width"];
+  vehicle_length = params_config["Vehicle.length"];
+
 }
 
 int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
@@ -140,21 +147,23 @@ int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
         }
 
         if(!MAP_DEBUG) {
-          //TODO: activate this!!!!!!
-          //cout<<"draw points"<<endl;
           cv::ellipse(occupancy_map,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(255,0,0), -1);
+          //TODO: consider the area of obstacle padding && outside lane
+          cv::ellipse(occupancy_map_raw,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(100,0,0), -1);
           cv::rectangle(occupancy_map_raw,cv::Point(cx1, cy1), cv::Point(cx2, cy2), cv::Scalar(255,0,0), -1);
         }
       }
     }
   }
+  z_print("CV CAR BOUNDARY");
+  cv::rectangle(occupancy_map,cv::Point(map_width/2 - (int)(vehicle_width/map_resol), map_height-1), cv::Point(map_width/2 + (int)(vehicle_width/map_resol), map_height-1 - (int)(vehicle_length/2*map_resol)), cv::Scalar(0,0,0), -1);
   //Z_DEBUG
   if(MAP_DEBUG) {
-    cv::rectangle(occupancy_map,cv::Point(0,0), cv::Point(map_width/2,5), cv::Scalar(255,0,0), -1);
-    cv::circle(occupancy_map, cv::Point(map_width/2,map_height/2-20),15,cv::Scalar(255,0,0), -1);
-    //cv::rectangle(occupancy_map,cv::Point(map_width/2-60, map_height/2-20), cv::Point(map_width/2-48, map_height/2+20), cv::Scalar(255,0,0), -1);
-    //cv::rectangle(occupancy_map,cv::Point(map_width/2+48, map_height/2+10), cv::Point(map_width/2+60, map_height/2+30), cv::Scalar(255,0,0), -1);
-    obstacle_count = 10;
+    // cv::rectangle(occupancy_map,cv::Point(0,0), cv::Point(map_width/2,5), cv::Scalar(255,0,0), -1);
+    // cv::circle(occupancy_map, cv::Point(map_width/2,map_height/2-20),15,cv::Scalar(255,0,0), -1);
+    // //cv::rectangle(occupancy_map,cv::Point(map_width/2-60, map_height/2-20), cv::Point(map_width/2-48, map_height/2+20), cv::Scalar(255,0,0), -1);
+    // //cv::rectangle(occupancy_map,cv::Point(map_width/2+48, map_height/2+10), cv::Point(map_width/2+60, map_height/2+30), cv::Scalar(255,0,0), -1);
+    // obstacle_count = 10;
   }
   return obstacle_count;
 }
@@ -256,7 +265,8 @@ void publishMessages(int flag_obstacle) {
   flag_obstacle_publisher.publish(msg_flag_obstacle);
   cout<<"estop_count : "<<estop_count <<endl;
   if(estop_count > estop_count_threshold) {
-    msg_emergency_stop.data = 1;
+    msg_emergency_stop.header.stamp = ros::Time::now();
+    msg_emergency_stop.estop = 1;
     emergency_publisher.publish(msg_emergency_stop);
   }
 
@@ -379,7 +389,7 @@ int main(int argc, char** argv)
 
   flag_obstacle_publisher = nh.advertise<std_msgs::Int32>("/flag_obstacle",1);
   target_publisher = nh.advertise<geometry_msgs::Vector3>("/planning_target",1);
-  emergency_publisher = nh.advertise<std_msgs::Int32>("/emergency_stop",1);
+  emergency_publisher = nh.advertise<core_msgs::Estop>("/emergency_stop",1);
 
   image_transport::ImageTransport it(nh);
   publishMapImg = it.advertise("/occupancy_map",1);

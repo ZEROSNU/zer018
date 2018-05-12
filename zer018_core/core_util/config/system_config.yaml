@@ -1,12 +1,12 @@
 %YAML 1.0
 
 #Vehicle
-Vehicle.width: 1.6
-Vehicle.length: 2.6
-Vehicle.wheelbase: 1.6
+Vehicle.width: 0.95
+Vehicle.length: 2.0
+Vehicle.wheelbase: 1.02
 Vehicle.length_front: 0.8
 Vehicle.length_rear: 0.8 #length_rear + length_front = wheelbase
-Vehicle.cm_lidar_dist: 1.0
+Vehicle.cm_lidar_dist: 0.86
 #Road
 Road.lanewidth: 3.0
 
