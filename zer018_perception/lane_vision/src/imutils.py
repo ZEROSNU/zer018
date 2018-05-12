@@ -26,5 +26,5 @@ def CannyEdge(img, low_threshold, high_threshold):
     return img
 
 def Hough(img):
-    lines = cv2.HoughLinesP(img,1,1*np.pi/180,50,minLineLength=10, maxLineGap=20)
+    lines = cv2.HoughLinesP(img,1,np.pi/180,10,minLineLength=10, maxLineGap=50)
     return lines
