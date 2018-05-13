@@ -8,16 +8,20 @@ import time
 import math
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
+from core_msgs.msg import Estop
 from cv_bridge import CvBridge, CvBridgeError
 import rospkg
-#from core_msgs.msg import VehicleState
-#from core_msgs.msg import Control
 
 
-#DEBUG MODE : True / False
-Z_DEBUG = True
+
+#DEBUG MODE 
+Z_DEBUG = False
+Z_SEND_ESTOP = True
 Z_BLUE_MASKING = False
+Z_VIEW_TIMETAKEN = False
 USE_HoughLines = False #HoughLines : True / HoughLinesP : False
+
+
 
 lower_white_hsv = np.array([0,0,220], np.uint8)
 upper_white_hsv = np.array([255,50,255], np.uint8)
@@ -34,13 +38,39 @@ MIN_DETECTED_THRESHOLD_P = 3
 
 detect_count = 0
 #number of detected frames in STOPLINE_BUFFER >= DETECT_THRESHOLD : STOPLINE DETECTED!  
-BUFFER_SIZE = 5
-DETECT_THRESHOLD = 3
+BUFFER_SIZE = 10
+DETECT_THRESHOLD = 6
 STOPLINE_BUFFER = np.zeros(BUFFER_SIZE)
 
 bridge = CvBridge()
+msg = Estop()
+pub = rospy.Publisher('/emergency_stop', Estop, queue_size=10)
 ###########################################
 
+def init():
+
+    #pub = rospy.Publisher('/emergency_stop', Estop, queue_size=10)
+    rospy.Subscriber("warped_image", Image, callback)
+    rospy.init_node('stopline', anonymous=True)
+    #msg = Estop()
+    rate = rospy.Rate(20)
+ 
+    while True:
+       
+        while not rospy.is_shutdown():
+            rospy.spin()
+
+def SendEstop(msg):
+    msg.header.stamp = rospy.Time.now()
+    msg.estop = 1
+    cnt = 1
+    while(cnt <= 200):
+        if Z_DEBUG:
+            print "sending estop sign : " + str(cnt)
+        time.sleep(0.02)
+        pub.publish(msg)
+        cnt = cnt+1
+    rospy.signal_shutdown("succesfully sended ESTOP sign")
 
 def reject_outliers(data):
     u = np.mean(data)
@@ -58,6 +88,8 @@ def findColor(hsv_image, lower, upper):
     mask = cv2.inRange(hsv_image, lower, upper)
     return mask
 
+
+    
 def DrawHoughLines(edge, img): #edge: edge input, img : image on which draw lines
     
 
@@ -111,7 +143,7 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
     lines = cv2.HoughLinesP(edge, 1, np.pi / 180, 10, minLineLength=50, maxLineGap=20)
     detect_count = 0
     detected_points_x = np.array([])
-    try:
+    if True:
         for x1, y1, x2, y2 in lines[:, 0]:
             
             angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
@@ -128,15 +160,16 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
                     pass
 
         if Z_DEBUG:
-            print detect_count
+            print(str(detect_count) + "points detected")
             pass
         
         if detect_count >= MIN_DETECTED_THRESHOLD_P:
             filtered_x_points = reject_outliers(detected_points_x)
-            
-            cv2.circle(img, (int(np.mean(filtered_x_points)), int(np.shape(img)[0]/2)),3,(255,0,0),3,1)
-            #cv2.circle(img, (int(np.mean(filtered_x_points)-100), 300),3,(0,255,0),3,1)    
-            detected = True
+            if(np.size(filtered_x_points) >= 4):
+                cv2.circle(img, (int(np.mean(filtered_x_points)), int(np.shape(img)[0]/2)),3,(255,0,0),3,1)
+                detected = True
+            else:
+                detected = False
         else:
             detected = False
 
@@ -145,7 +178,7 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
         STOPLINE_BUFFER[BUFFER_SIZE-1] = detected
 
         return img
-    except:
+    else:
         return img
 ###########################################
 
@@ -169,29 +202,23 @@ def callback(data):
 
     #BUFFER
     if np.size(np.where(STOPLINE_BUFFER == True)) >= DETECT_THRESHOLD:
-        print("stopline detected!")
-        '''
-        Do something!
-        '''
+        if Z_DEBUG:
+            print("stopline detected!")
+
+        if Z_SEND_ESTOP:
+            SendEstop(msg)
+
     if Z_DEBUG:
         cv2.imshow('img', img)
         cv2.imshow('white mask', white_mask)
         k = cv2.waitKey(30) & 0xFF
-        print("Time taken: ", (time.time()-init_time))
+        if Z_VIEW_TIMETAKEN:
+            print("Time taken: ", (time.time()-init_time))
 
 
     pass
 
-def init():
-    
-    rospy.Subscriber("warped_image", Image, callback)
-    rospy.init_node('stopline', anonymous=True)
-    rate = rospy.Rate(20)
 
-    while True:
-       
-        while not rospy.is_shutdown():
-            rospy.spin()
 
 
 if __name__ == '__main__':
