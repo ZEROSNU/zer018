@@ -67,7 +67,7 @@ static const double bloating = 0;
 // For DEBUG
 static const double width = 0.3 + 2 * bloating;
 /// [m] --- The length of the vehicle
-static const double length = 0.5 + 2 * bloating;
+static const double length = 0.3 + 2 * bloating;
 
 /// [m] --- The minimum turning radius of the vehicle
 static const float r = 3;

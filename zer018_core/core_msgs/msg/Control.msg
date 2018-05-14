@@ -7,7 +7,8 @@ Header header
 # NORMAL_C = 3 # normal c point following mode
 # SLOW_C = 4 # c poin following with low speed
 # U_TURN = 5 # when u turn is activated
-# PARK_REVERSE = 6 # when returning to main lane from parking lot
+# PARK_FORWARD = 6
+# PARK_REVERSE = 7 # when returning to main lane from parking lot
 int16 control_mode
 
 bool is_auto

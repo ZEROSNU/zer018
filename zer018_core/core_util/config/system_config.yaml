@@ -22,10 +22,10 @@ Map.resolution: 0.03  #m/pix
 
 Map.obstacle.paddingx: 1 #for occupancy_map_raw rect arount occupied points
 Map.obstacle.paddingy: 1 #for occupancy_map_raw rect arount occupied points
-Map.obstacle.safex: 22 #for occupancy_map ellipse arount occupied points
-Map.obstacle.safey: 30 #for occupancy_map ellipse arount occupied points
+Map.obstacle.safex: 20 #for occupancy_map ellipse arount occupied points
+Map.obstacle.safey: 40 #for occupancy_map ellipse arount occupied points
 Map.obstacle.min_range: 0.5
-Map.obstacle.max_range: 3.5
+Map.obstacle.max_range: 5.0
 # Map.obstacle.max_range: 1.5
 Map.obstacle.min_theta: -10
 Map.obstacle.max_theta: 190

@@ -16,6 +16,7 @@ add_message_files( DIRECTORY msg
   CenPoint.msg
   Control.msg
   Estop.msg
+  ParkPoints.msg
 )
 
 add_service_files(

@@ -1,5 +1,8 @@
 <launch>
   <node pkg = "lms_client" type="lms_client" name="lms_client" args="false"/>
+  <param name = "uturn_mode" value = "0" />
+  <param name = "park_mode" value = "0" />
+
   <node name="fake_camera_node" pkg="lane_vision" type="fake_camera_node.py"/>
   <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="true"  output ="screen"/>
 

@@ -22,26 +22,26 @@ def imagePublisher():
 
     warp_pub = rospy.Publisher('warped_image', Image, queue_size=1)
     rospy.init_node('camera_node_warp', anonymous=True)
-    rate=rospy.Rate(20)#10hz
+    rate=rospy.Rate(10)#10hz
     bridge = CvBridge()
 
     while not rospy.is_shutdown():
-        
-        path = '/home/snuzero/test day1 data/7/' + str(count) + '.jpg'
+        im_count = int(count/2)
+        path = '/home/snuzero/day2_park1/' + str(im_count) + '.jpg'
         summed_image = cv2.imread(path)
         cv2.imshow('summed_image', summed_image)
         summed_image = bridge.cv2_to_imgmsg(summed_image, "bgr8")
 
         count +=1
-        if(count==1707):
+        if(count==1368):
             count=0
         warp_pub.publish(summed_image)
-    
+
         k = cv2.waitKey(1) & 0xFF
         rate.sleep()
         if k ==27:
             break
-        
+
 
     cv2.destroyAllWindows()
 

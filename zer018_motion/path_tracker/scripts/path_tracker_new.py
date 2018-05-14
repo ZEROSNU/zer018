@@ -9,6 +9,7 @@ from core_msgs.msg import Control
 from core_msgs.msg import CenPoint
 from core_msgs.msg import VehicleState
 from core_msgs.msg import Estop
+from core_msgs.msg import ParkPoints
 from geometry_msgs.msg import Vector3
 from std_msgs.msg import Int32
 from std_msgs.msg import Float32
@@ -23,20 +24,24 @@ class Control_mode(object):
     NORMAL_C = 3 # normal c point following mode
     SLOW_C = 4 # c poin following with low speed
     U_TURN = 5 # when u turn is activated
-    PARK_REVERSE = 6 # when returning to main lane from parking lot
+    PARK_FORWARD = 6
+    PARK_REVERSE = 7 # when returning to main lane from parking lot
 
 class tracker :
       def __init__ (self) :
             # -------------^CONSTANT^--------------
             self.pub_rate = 20.0 #Hz   #IMPORTANT!!! Main control rate
             self.access_wait_rate = 500 #Hz
-            self.speed_slope = 0.1 #m/s/conf
-            self.path_error_max = 0.3 #m maximum error ############################# added : name 
-            self.speed_max = 1.0 #m/s
+            self.speed_max = 2.2 #m/s
             self.speed_min = 0.4
+
+            self.speed_slope = self.speed_max / 10 #m/s/conf
+            self.path_error_max = 0.3 #m maximum error ############################# added : name 
+            self.speed_uturn = 0.4
             self.speed_delta = 0.1
             self.p_gain = 0.3
-            self.emergency_stop_keep = 10 #sec  #time keeping for emergency stop after receiving the message
+            self.steer_p_final = 1.5
+            self.emergency_stop_keep = 3 #sec  #time keeping for emergency stop after receiving the message
             self.map_resolution = 0.03
             self.map_height = 200
             self.map_width = 200
@@ -44,14 +49,15 @@ class tracker :
             self.brake_adjust_max = 50 #this is for normal velocity adjustment
             self.brake_slope = 50
             self.lpf_dt_cutoff = 10
-            self.steer_max = 27 #degree, this is for uturning ################### added
-            self.uturn_end = 180 #degree, turn 180 degree in uturning ####################### added
-
+            #TODO 
+            self.steer_max = 28.1 #degree, this is for uturning ################### added
+            self.uturn_end = 200 #degree, turn 180 degree in uturning ####################### added
+            self.goal_reach_distance = 0.5
 
             #JUNHO
-            self.spath_length_threshold = 8
+            self.spath_length_threshold = 15
 
-            self.spath_time_threshold = 30 #sec
+            self.spath_time_threshold = 20 #sec
             # if Z_DEBUG:
             #       self.spath_time_threshold =1
 
@@ -71,13 +77,15 @@ class tracker :
 
             self.sPath = PathArray()
             self.cPoint = CenPoint()
+            self.pPoint = ParkPoints() #for parking mission
             self.updated_sPath = PathArray()
             self.updated_cPoint = CenPoint()
+            self.updated_pPoint = ParkPoints() #for parking mission
+            self.updated_pPoint.goal_point.x = -1.0 #needed for safe initialization
+            self.rPath = PathArray()
+            self.updated_rPath = PathArray()
             self.uturn_angle = 0 ################################ added
 
-            #time variables _ time when this node get sPath or cenPoint
-            # self.stime = 0 #JUNHO not using this, instead, using time stamp in spath
-            #self.ctime = 0 #JUNHO not using this, instead, using time stamp in spath
             self.estoptime = -10
             self.accessing_state = 0
             self.accessing_sPath = 0
@@ -88,13 +96,19 @@ class tracker :
             self.current_state = VehicleState()
             self.state_buff = []
             self.state_time_buff = np.empty(0)
+            self.state_buff_park = []
+            self.state_time_buff_park = np.empty(0)
+
             self.control_buff = []
             self.control_time_buff = np.empty(0)
             self.state_buff_size = 600
             self.control_buff_size = 600 #buff_sizes are only used when updating the buffer
             self.control_count = 0
+            self.park_stop_count = 10*self.pub_rate
+            self.park_reverse_count = 30*self.pub_rate
+            self.uturn_stop_count = 4*self.pub_rate
 
-            self.sPath_n = 20
+            self.sPath_n = 10
             #-------^INPUT^---------------
 
       def decide_sPath_n(self) : ########################################################## added
@@ -196,10 +210,11 @@ class tracker :
             _first_time_indicator = 0
             while time_indicator <= _current_t and not is_exit:
                   if time_indicator == _current_t:
+                        # print "is_exit gets True"
                         is_exit = True
                   using_state, using_state_time, next_time = self.get_current_state(time_indicator)
                   if using_state == None:
-                        # print "while loop using_state is None"
+                        print "while loop using_state is None"
                         break
                   if time_indicator == _past_t:
                         time_indicator = next_time
@@ -209,7 +224,7 @@ class tracker :
                         delta_t = time_indicator - _past_t
                   else:
                         delta_t = time_indicator - using_state_time
-                  beta = np.arctan(self.lr / self.L * np.tan( -using_state.steer / 180 * np.pi))
+                  beta = np.arctan( (self.lr / self.L) * np.tan( -using_state.steer / 180 * np.pi))
                   if beta != 0 :
                         R = self.lr / np.sin(beta)
                         yaw_rate = using_state.speed / R
@@ -226,7 +241,9 @@ class tracker :
 
                   #time indicator update
                   time_indicator = next_time
-
+            # print "while loop terminated"
+            # if is_exit:
+            #       print "is_exit is True"
             self.accessing_state -= 1
             return updated_vector_point, is_exit
 
@@ -248,14 +265,19 @@ class tracker :
                   self.control.speed = self.speed_max
 
             objstr = self.control.steer
+
             strerr = objstr - curstr
-            self.control.steer = objstr + strerr * self.p_gain
+            self.control.steer = objstr + strerr * self.p_gain #TODO use different p_gain with speed
+            self.control.steer = self.control.steer * self.steer_p_final
+
             if self.control.steer > self.steer_max:
                   self.control.steer = self.steer_max
             elif self.control.steer < -self.steer_max:
                   self.control.steer = -self.steer_max
-            if objspd < curspd : #TODO consider braking condition
-                  self.control.brake = min(self.brake_adjust_max, spderr * self.brake_slope)
+            
+            speed_err = self.control.speed - self.current_state.speed
+            if speed_err < -0.2: #TODO consider braking condition
+                  self.control.brake = min(self.brake_adjust_max, -speed_err * self.brake_slope)
             if self.control.brake < 0:
                   self.control.brake = 0
             elif self.control.brake > self.brake_max:
@@ -280,6 +302,9 @@ class tracker :
             temp_updated_sPath = PathArray()
             temp_updated_sPath.header.stamp = self.sPath.header.stamp
             _past_t = self.sPath.header.stamp.to_sec()
+            if _past_t > _current_t:
+                  self.updated_sPath = self.sPath 
+                  return True
             for i in self.sPath.pathpoints :
                   pathpoint_i = Vector3()
                   pathpoint_i.x = self.map_resolution*(self.map_height-i.y) #0.03m per pixel
@@ -302,20 +327,108 @@ class tracker :
             self.accessing_sPath -= 1
             return True
 
+      def update_rpath(self, _current_t):
+            return
+
       #TODO: we have to check if cpoint updates well
       def update_cpoint(self, _current_t):
             _past_t = self.cPoint.header.stamp.to_sec()
+            # print "delta t during update",_current_t - _past_t
+            if _past_t > _current_t:
+                  self.updated_cPoint = self.cPoint
+                  return True
+
             _goalpoint = Vector3()
             _goalpoint.x = self.cPoint.x_waypoint - self.cencorr
             _goalpoint.y = self.cPoint.y_waypoint
             _goalpoint, is_transform_success = self.transform_pathpoint(_goalpoint, _past_t, _current_t)
 
+            self.updated_cPoint.header.stamp = self.cPoint.header.stamp
             self.updated_cPoint.confidence = self.cPoint.confidence
             self.updated_cPoint.x_waypoint = _goalpoint.x
             self.updated_cPoint.y_waypoint = _goalpoint.y
             if not is_transform_success:
                 return False
             return True
+
+      def update_ppoint(self, _current_t):
+            _past_t = self.pPoint.header.stamp.to_sec()
+            if len(self.pPoint.initpoints) == 0:
+                  print "pPoint not received"
+                  return False
+            if _past_t > _current_t:
+                  self.updated_pPoint = self.pPoint
+                  return True
+
+            _goalpoint = Vector3()
+            _goalpoint.x = self.pPoint.goal_point.x
+            _goalpoint.y = self.pPoint.goal_point.y
+            _goalpoint, is_transform_success = self.transform_pathpoint(_goalpoint, _past_t, _current_t)
+
+            if not is_transform_success:
+                return False
+
+            _init1point = Vector3()
+            _init1point.x = self.pPoint.initpoints[0].x
+            _init1point.y = self.pPoint.initpoints[0].y
+            _init1point, is_transform_success = self.transform_pathpoint(_init1point, _past_t, _current_t)
+
+            if not is_transform_success:
+                return False
+
+            _init2point = Vector3()
+            _init2point.x = self.pPoint.initpoints[1].x
+            _init2point.y = self.pPoint.initpoints[1].y
+            _init2point, is_transform_success = self.transform_pathpoint(_init2point, _past_t, _current_t)
+
+            if not is_transform_success:
+                return False
+
+            self.updated_pPoint.header.stamp = self.pPoint.header.stamp
+            self.updated_pPoint.goal_point = _goalpoint
+            self.updated_pPoint.initpoints = [_init1point, _init2point]
+            return True
+
+      def distance_to_point(self, _point):#_point is in CenPoint type
+            distance = math.sqrt(_point.x_waypoint**2 + _point.y_waypoint**2)
+            print "distance to goalpoint is ", distance
+            return distance
+
+      def make_reverse_path(self):
+            if len(self.state_buff_park) > len(self.state_time_buff_park):
+                  self.state_buff_park = self.state_buff_park[:len(self.state_time_buff_park)]
+            elif len(self.state_buff_park) < len(self.state_time_buff_park):
+                  self.state_time_buff_park = self.state_time_buff_park[:len(self.state_buff_park)]
+            state_length = len(self.state_buff_park)
+            _path_point = Vector3()
+            _path_point.x = 0
+            _path_point.y = 0
+            prev_time = self.state_time_buff_park[-1]
+            i = 0
+            for r_state in reversed(self.state_buff_park):
+                  if i == 0:
+                        continue
+                  curr_time = self. state_time_buff_park[state_length - i - 1]
+                  delta_t = prev_time - curr_time
+                  beta = np.arctan(self.lr / self.L * np.tan( -r_state.steer / 180 * np.pi))
+                  if beta != 0 :
+                        R = self.lr / np.sin(beta)
+                        yaw_rate = r_state.speed / R
+                        delta_phi = delta_t * yaw_rate
+                        alpha = delta_phi/2+beta
+                        ld = np.absolute(2*R*np.sin(alpha - beta))
+                        x_prime = _path_point.x + ld * np.cos(alpha)
+                        y_prime = _path_point.y - ld * np.sin(alpha)
+                        _path_point.x = np.cos(delta_phi) * x_prime - np.sin(delta_phi) * y_prime
+                        _path_point.y = np.sin(delta_phi) * x_prime + np.cos(delta_phi) * y_prime
+
+                  else :
+                        _path_point.x = _path_point.x + r_state.speed * delta_t
+
+                  self.rPath.pathpoints.append(_path_point)
+                  prev_time = curr_time
+                  i += 1
+            return
 
       def main_control_loop(self) :
 
@@ -332,8 +445,8 @@ class tracker :
             self.control.brake = 1
             #TODO: change this to server client later
             #uturn = 0
-            uturn = rospy.get_param('uturn_mode') ###################### added
-
+            uturn_mode = rospy.get_param('uturn_mode') ###################### added
+            park_mode = rospy.get_param('park_mode')
             current_t = self.current_state.header.stamp.to_sec()
 
             '''
@@ -355,7 +468,15 @@ class tracker :
             is_updated_cpoint = self.update_cpoint(current_t)
             # if Z_DEBUG and not is_updated_cpoint :
                   # print "c-point is not updated due to short state buffer"
+            if park_mode ==2:
+                  is_updated_ppoint = self.update_ppoint(current_t)
+                  if not is_updated_ppoint:
+                        print "p-point is not updated"
 
+            if park_mode ==3:
+                  is_updated_rpath = self.update_rpath(current_t)
+
+            
             '''
             3. Deciding the control mode
             IMPORTANT: This is the most upper level logic of low-level controller!!
@@ -366,18 +487,18 @@ class tracker :
                         print "control mode: emergency braking"
                   temp_control_mode = Control_mode.EMERGENCY_BRAKE
 
-            elif uturn >= 1: ##################################### added
-                  if uturn == 1:
+            elif uturn_mode >= 1: ##################################### added
+                  if uturn_mode == 1:
                         if Z_DEBUG:
                               print "control mode: u-turning enter, C point tracking with low speed"
                         temp_control_mode = Control_mode.SLOW_C
-                  elif uturn == 2:
+                  elif uturn_mode == 2:
                         ##TODO: upgrade second logic of if statement
-                        # if self.uturn_angle > self.uturn_end and self.ctime > self.control_time_buff[-1]:      
+                        # if self.uturn_angle > self.uturn_end and self.cpoint.header.stamp.to_sec() > self.control_time_buff[-1]:      
                         if self.uturn_angle > self.uturn_end:      
                               if Z_DEBUG:
                                     print "control mode: u-turning end, C point tracking start"
-                                    uturn = 0
+                                    uturn_mode = 0
                               rospy.set_param("uturn_mode", 0)
                               self.uturn_angle = 0
                               temp_control_mode = Control_mode.NORMAL_C
@@ -385,7 +506,13 @@ class tracker :
                               # if Z_DEBUG:
                                     # print "control mode: u-turning"
                               temp_control_mode = Control_mode.U_TURN
-
+            elif park_mode >= 1:
+                  if park_mode ==1:
+                        temp_control_mode = Control_mode.SLOW_C
+                  elif park_mode ==2:
+                        temp_control_mode = Control_mode.PARK_FORWARD
+                  elif park_mode ==3:
+                        temp_control_mode = Control_mode.PARK_REVERSE
             # normal s path tracking, when the updated_sPath is still long enough to follow, the vehicle follows it.
             # This situation occurs during inside missions with rubber cones, and also when the vehicle is exiting the mission.
             elif len(self.updated_sPath.pathpoints) > self.spath_length_threshold :
@@ -421,29 +548,50 @@ class tracker :
                   # self.decide_sPath_n() ########################################### added
  
                   if len(self.updated_sPath.pathpoints) <= self.sPath_n :
-                        self.goalpoint.x_waypoint = self.map_resolution*(200-self.updated_sPath.pathpoints[-1].y)
-                        self.goalpoint.y_waypoint = self.map_resolution*(100-self.updated_sPath.pathpoints[-1].x)
+                        self.goalpoint.x_waypoint = self.map_resolution*(200-self.updated_sPath.pathpoints[0].y)
+                        self.goalpoint.y_waypoint = self.map_resolution*(100-self.updated_sPath.pathpoints[0].x)
                   else:
-                        self.goalpoint.x_waypoint = self.map_resolution*(200-self.updated_sPath.pathpoints[self.sPath_n].y)
-                        self.goalpoint.y_waypoint = self.map_resolution*(100-self.updated_sPath.pathpoints[self.sPath_n].x)
-            if self.control_mode == Control_mode.NORMAL_C or self.control_mode == Control_mode.SLOW_C:
-                        self.goalpoint.x_waypoint = self.updated_cPoint.x_waypoint
-                        self.goalpoint.y_waypoint = self.updated_cPoint.y_waypoint
-                        self.goalpoint.confidence = self.updated_cPoint.confidence
+                        self.goalpoint.x_waypoint = self.map_resolution*(200-self.updated_sPath.pathpoints[-self.sPath_n].y)
+                        self.goalpoint.y_waypoint = self.map_resolution*(100-self.updated_sPath.pathpoints[-self.sPath_n].x)
+            elif self.control_mode == Control_mode.NORMAL_C or self.control_mode == Control_mode.SLOW_C:
+                  self.goalpoint.x_waypoint = self.updated_cPoint.x_waypoint
+                  self.goalpoint.y_waypoint = self.updated_cPoint.y_waypoint
+                  self.goalpoint.confidence = self.updated_cPoint.confidence
+            elif self.control_mode == Control_mode.PARK_FORWARD:
+                  self.goalpoint.x_waypoint = self.updated_pPoint.goal_point.x
+                  self.goalpoint.y_waypoint = self.updated_pPoint.goal_point.y
+                  if self.goalpoint.x_waypoint < -0.2:
+                        print "goal point passed"
+                  if self.updated_pPoint.goal_point.x >= -1.0 and ( self.distance_to_point(self.goalpoint) < self.goal_reach_distance or (self.goalpoint.x_waypoint < -0.2 and abs(self.goalpoint.y_waypoint) < 0.5)) :
+                        rospy.set_param('park_mode',3)
+                        self.make_reverse_path()
+            elif self.control_mode == Control_mode.PARK_REVERSE:
+                  if self.park_reverse_count <= 0:
+                        rospy.set_param('park_mode', 0)      
             # in other control_mode, goalpoint do not need to be set again because the control logic does not depend on the goalpoint.
 
             # 2) deciding PURE PURSUIT OUTPUT based on goalpoint
-            if self.control_mode == Control_mode.NORMAL_S or self.control_mode == Control_mode.NORMAL_C or self.control_mode == Control_mode.SLOW_C:
+            if self.control_mode == Control_mode.NORMAL_S or self.control_mode == Control_mode.NORMAL_C or self.control_mode == Control_mode.SLOW_C or self.control_mode == Control_mode.PARK_FORWARD:
                   ld = math.sqrt(self.goalpoint.x_waypoint*self.goalpoint.x_waypoint + self.goalpoint.y_waypoint*self.goalpoint.y_waypoint)
                   if ld == 0:
                         delta  = 0
                   else:
-                        delta = -np.arctan(2 * self.L * self.goalpoint.y_waypoint / ld / (ld + 2 * self.lr * self.goalpoint.x_waypoint/ld)) # ld is lookahead distance
+                        delta = -np.arctan(2 * self.L * (self.goalpoint.y_waypoint / ld) / (ld + 2 * self.lr * self.goalpoint.x_waypoint/ld)) # ld is lookahead distance
                   self.control.steer = delta / np.pi * 180 #in degree
             #################### added
+                  
             elif self.control_mode == Control_mode.U_TURN :
+                  if self.uturn_stop_count >0:
+                        self.uturn_stop_count -=1
                   self.control.steer = -self.steer_max
                    #################### added
+            elif self.control_mode == Control_mode.PARK_REVERSE:
+                  self.control.gear = 2
+                  self.control.steer = self.steer_max/2
+                  if self.park_stop_count > 0:
+                        self.park_stop_count -=1
+                  elif self.park_reverse_count >0:
+                        self.park_reverse_count -=1
             else:
                   self.control.steer = 0
             #TODO: set steer for u-turn and reverse
@@ -452,9 +600,7 @@ class tracker :
             '''
             5. Decide speed depending on each control mode
             '''
-            if self.control_mode == Control_mode.NORMAL_S or self.control_mode == Control_mode.SLOW_C or self.control_mode == Control_mode.U_TURN:
-                  self.control.speed = self.speed_min
-            elif self.control_mode == Control_mode.NORMAL_C:
+            if self.control_mode == Control_mode.NORMAL_C:
                   self.control.speed = self.goalpoint.confidence * self.speed_slope
                   print(self.goalpoint.confidence)
             elif self.control_mode == Control_mode.NO_CONTROL:
@@ -463,6 +609,18 @@ class tracker :
             elif self.control_mode == Control_mode.EMERGENCY_BRAKE:
                   self.control.speed = 0
                   self.control.brake = self.brake_max
+            elif self.control_mode == Control_mode.U_TURN:
+                  if self.uturn_stop_count >0:
+                        self.control.speed = 0
+                  else:
+                        self.control.speed = self.speed_uturn
+            elif self.control_mode == Control_mode.PARK_REVERSE:
+                  if self.park_stop_count > 0:
+                        self.control.speed = 0
+                  elif self.park_reverse_count > 0:
+                        self.control.speed = self.speed_min
+            else:
+                  self.control.speed = self.speed_min
 
 
             '''
@@ -504,7 +662,9 @@ class tracker :
 
       def write_cPoint(self, data) :
             self.cPoint=data
-            self.ctime= data.header.stamp.to_sec()
+
+      def write_pPoint(self, data) :
+            self.pPoint = data
 
       def write_sPath(self, data) :
             #make sure that writing new sPath does not occurs during updating sPath
@@ -537,6 +697,9 @@ class tracker :
             
                   self.uturn_angle += (angle / np.pi) * 180 ####################### added
 
+            if self.control_mode == Control_mode.PARK_FORWARD:
+                  self.state_buff_park.append(data)
+                  self.state_time_buff_park = np.append(self.state_time_buff, self.current_state.header.stamp.to_sec())                  
 
             # if Z_DEBUG:
             #       print "state buffer size: ", len(self.state_buff)
@@ -547,7 +710,6 @@ class tracker :
                   print i
 
       def show_cPoint(self) :
-            print self.ctime
             print self.cPoint
 
       def show_stbuff(self) :
@@ -585,6 +747,9 @@ def callback_c(data) :
 #      main_track.show_cPoint()
 #      print "Got cPoint"
 
+def callback_p(data) :
+      main_track.write_pPoint(data)
+
 def callback_stbuff(data) :
       main_track.write_stbuff(data)
 #      main_track.show_stbuff()
@@ -605,15 +770,19 @@ def init() :
       rospy.init_node('path_tracker', anonymous=True)
       rospy.Subscriber('/sPath', PathArray, callback_s)
       rospy.Subscriber('/waypoints', CenPoint, callback_c)
+      rospy.Subscriber('/initial_points_for_park', ParkPoints, callback_p)
       rospy.Subscriber('/vehicle_state', VehicleState, callback_stbuff, queue_size = 1, buff_size=2**24)
       rospy.Subscriber('/emergency_stop', Estop, callback_emergency)
       rospy.Subscriber('/flag_obstacle', Int32, callback_obstacle)
-
+      
       cont_pub = rospy.Publisher('/control', Control, queue_size=10)
       mon_path_pub = rospy.Publisher('/path_tracking', PathArray, queue_size=10)
-      rate = rospy.Rate(main_track.pub_rate)
+      updated_cpoint_pub = rospy.Publisher('/updated_cpoint', CenPoint, queue_size=10)
+      updated_ppoint_pub = rospy.Publisher('/updated_ppoint', ParkPoints, queue_size=10)
       spath_n_pub = rospy.Publisher('/lookahead_n', Int32, queue_size=10)
       uturn_angle_pub = rospy.Publisher('/uturn_angle', Float32, queue_size =1)      
+
+      rate = rospy.Rate(main_track.pub_rate)
       #TODO: set vehicle parameters from yaml file
 
       while not rospy.is_shutdown() :
@@ -621,6 +790,8 @@ def init() :
             mon_path_pub.publish(main_track.updated_sPath)
             spath_n_pub.publish(main_track.sPath_n)
             uturn_angle_pub.publish(main_track.uturn_angle)
+            updated_cpoint_pub.publish(main_track.updated_cPoint)
+            updated_ppoint_pub.publish(main_track.updated_pPoint)
             rate.sleep()
 
 

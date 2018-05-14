@@ -28,7 +28,7 @@ def imagePublisher():
 
     while not rospy.is_shutdown():
         if MYCOMPUTER:
-            path = '/home/dongwan/8/' + str(count) + '.jpg'
+            path = '/home/snuzero/day3_uturn2/' + str(count) + '.jpg'
         else: 
             path = '/home/snuzero/day2_park1/' + str(count) + '.jpg'
         summed_image = cv2.imread(path)

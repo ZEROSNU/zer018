@@ -1,18 +1,22 @@
 <launch>
   <node name="camera_node" pkg="lane_vision" type="camera_node.py"/>
 
+  <param name = "park_mode" value = "0" />
+  <param name = "uturn_mode" value = "0" />
+
   <node pkg = "lms1xx" type="LMS1xx_node" name="lms1xx" output="screen"/>
   <node pkg = "lms_client" type="lms_client" name="lms_client" args="false"/>
 
-  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false" output="screen"/>
-  <node name="astar_planner" pkg="astar_planner" type="path_planner" output="screen"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false" output="screen"/>
+  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false"/>
+  <node name="astar_planner" pkg="astar_planner" type="path_planner"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false"/>
 
   <node name="lane_detect" pkg="lane_vision" type="lane_detect.py"/>
-  <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py" output="screen"/>
+  <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py"/>
   <node name="ser_com" pkg="zero_serial" type = "serial_com.py"/>
-  <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ /control /flag_obstacle /lane_map/compressed /monitor/compressed /occupancy_map/compressed /occupancy_map_raw/compressed /path /sPath /scan /planning_target /vehicle_state /warped_image/compressed /waypoints /path_tracking"/>
+  <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ /control /flag_obstacle /lane_map/compressed /monitor/compressed /occupancy_map/compressed /occupancy_map_raw/compressed /path /sPath /scan /planning_target /vehicle_state /warped_image/compressed /waypoints /path_tracking /updated_cpoint /updated_ppoint"/>
   <!-- <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ -a"/> -->
-  <node name="monitor_window" pkg="zero_monitor" type="monitor_window.py" output="screen"/>
-
+  <node name="monitor_window" pkg="zero_monitor" type="monitor_window.py"/>
+  <node name="stopline" pkg = "zero_mission" type = "stopline.py" output = "screen"/>
+  <!-- <node name = "traffic_camera_node" pkg = "zero_mission" type = "traffic_camera_node.py" output = "screen"/> -->
 </launch>

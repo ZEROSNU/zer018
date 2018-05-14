@@ -22,31 +22,20 @@ lower_white_rgb = np.array([190,190,190], np.uint8)
 upper_white_rgb = np.array([255,255,255], np.uint8)
 
 
-# Node to obtain call camera data. Separate I/O pipeline
-rospy.loginfo('Init Cameras...')
-cam_front = cv2.VideoCapture(1)
-cam_left = cv2.VideoCapture(2)
-cam_right = cv2.VideoCapture(3)
-cam_front.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
-cam_front.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-cam_front.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
-cam_left.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
-cam_left.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-cam_left.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
-cam_right.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
-cam_right.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-cam_right.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
 
 
-homography_front = np.array([[1.20578316901691e-05, 0.000329407217584187, -0.654631511346573],
-        [0.000956007807820993, -0.00231196866646363, -0.755942976367266],
-        [4.59523223437821e-08, -7.58289486150618e-06, -0.00119706768797383]])
-homography_left = np.array([[0.000718031591780952, -0.000165635757963769, 0.0810412365295545],
-        [-0.000457696149644549, 0.00197605152199676, 0.996708002646204],
-        [3.29970074027985e-07, 7.21616117600935e-06, 0.000904500215204792]])
-homography_right = np.array([[0.000915698708180926, 0.000160507016324320, -0.989937462884797],
-        [0.000940331110058012, -0.00341128707549284, -0.141453165043701],
-        [2.16613893241818e-07, -1.07504356915543e-05, -0.00119841227368443]])
+
+homography_front = np.array([[-2.70228915e-05, 2.65327952e-04, -8.40851775e-01], 
+       [ 1.23350874e-03, -3.09331040e-03, -9.02184303e-01], 
+       [-6.07198793e-08, -1.03679613e-05, -1.20307233e-03]]) 
+
+homography_left = np.array([[ 9.52913526e-04, -1.54462293e-04, 1.34050016e-01], 
+       [-6.76484134e-04, 2.63203439e-03, 1.30538654e+00], 
+       [ 3.00904722e-07, 9.73186701e-06, 1.04804444e-03]]) 
+
+homography_right = np.array([[-8.37207792e-04, -8.42444368e-05, 9.88391547e-01], 
+       [-1.03281920e-03, 3.30718896e-03, 2.38351581e-02], 
+       [-3.88972127e-07, 1.08066739e-05, 5.85856759e-04]])
 
 
 
@@ -73,41 +62,70 @@ def imagePublisher():
     bridge = CvBridge()
 
     while not rospy.is_shutdown():
-        _, front_img = cam_front.read()
-        _, left_img = cam_left.read()
-        _, right_img = cam_right.read()
+        ret1, front_img = cam_front.read()
+        ret2, left_img = cam_left.read()
+        ret3, right_img = cam_right.read()
 
-        init_time = time.time()
-        im_front = warp_image(front_img, homography_front).astype('uint8')
-        im_left = warp_image(left_img, homography_left).astype('uint8')
-        im_right = warp_image(right_img, homography_right).astype('uint8')
+        if (ret1 and ret2 and ret3):
+            init_time = time.time()
+            im_front = warp_image(front_img, homography_front).astype('uint8')
+            im_left = warp_image(left_img, homography_left).astype('uint8')
+            im_right = warp_image(right_img, homography_right).astype('uint8')
 
-        im_mask_inv, im_mask = find_mask(im_front)
-        front_masked = np.multiply(im_front, im_mask_inv).astype('uint8')
-        left_masked = np.multiply(im_left, im_mask).astype('uint8')
-        right_masked = np.multiply(im_right, im_mask).astype('uint8')
-        summed_image = front_masked + left_masked+right_masked
+            im_mask_inv, im_mask = find_mask(im_front)
+            front_masked = np.multiply(im_front, im_mask_inv).astype('uint8')
+            left_masked = np.multiply(im_left, im_mask).astype('uint8')
+            right_masked = np.multiply(im_right, im_mask).astype('uint8')
+            summed_image = front_masked + left_masked+right_masked
 
-        cv2.imshow('warped', summed_image)
-        pathname_warp = path + "/" + str(time.time()) + ".jpg"
-        # cv2.imwrite(pathname_warp, summed_image)
-        summed_image = bridge.cv2_to_imgmsg(summed_image, "bgr8")
-        rospy.loginfo("images sent")
-        print("Time taken: ", time.time() -init_time)
-        k = cv2.waitKey(1) & 0xFF
-        if k ==27:
-            break
+            cv2.imshow('warped', summed_image)
+            # pathname_warp = path + "/" + str(time.time()) + ".jpg"
+            # cv2.imwrite(pathname_warp, summed_image)
+            summed_image = bridge.cv2_to_imgmsg(summed_image, "bgr8")
+            rospy.loginfo("images sent")
+            print("Time taken: ", time.time() -init_time)
+            k = cv2.waitKey(1) & 0xFF
+            if k ==27:
+                break
 
-        warp_pub.publish(summed_image)
+            warp_pub.publish(summed_image)
     cv2.destroyAllWindows()
     cam_front.release()
     cam_left.release()
     # cam_right.release()
 
-
-
 if __name__ == '__main__':
     try:
+        # Node to obtain call camera data. Separate I/O pipeline
+        rospy.loginfo('Init Cameras...')
+        while True:
+            cam_front = cv2.VideoCapture(1)
+            cam_left = cv2.VideoCapture(2)
+            cam_right = cv2.VideoCapture(3)
+            cam_front.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
+            cam_front.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cam_front.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
+            cam_left.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
+            cam_left.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cam_left.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
+            cam_right.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
+            cam_right.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cam_right.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
+
+            ret1, front_img = cam_front.read()
+            ret2, left_img = cam_left.read()
+            ret3, right_img = cam_right.read()
+
+            if (ret1 and ret2 and ret3):
+                print("All cameras connected!")
+                break
+            else:
+                print("Connection error! retrying...")
+                cam_front.release()
+                cam_left.release()
+                cam_right.release()
+
+
         imagePublisher()
 	#print('sending image')
     except rospy.ROSInterruptException:

@@ -24,6 +24,7 @@
 //TODO: Define and set core_msgs and their msg files listed here
 #include "core_msgs/ROIPointArray.h"
 #include "core_msgs/Estop.h"
+#include "core_msgs/ParkPoints.h"
 #include "core_util/zdebug.h"
 #include "std_msgs/Int32.h"
 #include "geometry_msgs/Pose2D.h"
@@ -31,6 +32,7 @@
 #include "sensor_msgs/Image.h"
 #include "opencv2/opencv.hpp"
 #include <boost/thread.hpp>
+#include <boost/bind.hpp>
 
 #define min(a,b) ((a)<(b)?(a):(b))
 #define RAD2DEG(x) ((x)*180./M_PI)
@@ -40,9 +42,11 @@ std::string config_path;
 
 bool flag_imshow = true;
 bool flag_record = true;
-
+bool is_set_parkmode = false;
 cv::VideoWriter outputVideo;
 
+int is_occupied_x;
+int is_occupied_y;
 float lane_width;
 int map_width, map_height, paddingx, paddingy, safex, safey;
 float map_resol, map_offset, min_range, max_range, min_theta, max_theta; //this is equal to length from vehicle_cm to lidar
@@ -73,7 +77,6 @@ boost::mutex map_mutex_;
 std::vector<geometry_msgs::Vector3> obstacle_points;
 // int lidar_count=0;
 // float lidar_angle_min = 0;
-
 using namespace std;
 
 bool check_out(int cx, int cy)
@@ -104,7 +107,33 @@ void mapInit(cv::FileStorage& params_config) {
 
   vehicle_width = params_config["Vehicle.width"];
   vehicle_length = params_config["Vehicle.length"];
+}
 
+bool isOccupied(float x, float y) {
+  std::cout <<" is Occupied Called!" <<std::endl;
+  //x, y is in meter
+  double cx = -y;
+  double cy = x-map_offset;
+  double r = sqrt(cx*cx + cy*cy);
+  std::cout<<"r is "<< r<<std::endl;
+  double theta = atan2(cy, cx);
+  for(int i= obstacle_points.size()-1; i>=0;i--){
+    //cout<<"HERE"<<endl;
+    float range_i = obstacle_points.at(i).x;
+    float theta_i = obstacle_points.at(i).y;//in radian
+    if(abs(theta_i - theta) <0.36 && range_i < r + 0.4 && range_i >min_range && range_i<max_range)
+    {
+      std::cout << "occupied! " <<std::endl;
+      int obstacle_x = range_i*cos(theta_i);
+      int obstacle_y = range_i*sin(theta_i);
+      int cx = map_width/2 + (int)(obstacle_x/map_resol);
+      int cy = map_height - (int)((obstacle_y+map_offset)/map_resol);
+      is_occupied_x = cx;
+      is_occupied_y = cy;
+      return true;
+    }
+  }
+  return false;
 }
 
 int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
@@ -147,24 +176,41 @@ int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
         }
 
         if(!MAP_DEBUG) {
-          cv::ellipse(occupancy_map,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(255,0,0), -1);
-          //TODO: consider the area of obstacle padding && outside lane
-          cv::ellipse(occupancy_map_raw,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(100,0,0), -1);
+          cv::Point padding_points[4];
+          // padding_points[0]= cv::Point(0,0);
+          // padding_points[3]= cv::Point(0,100);
+          // padding_points[2]= cv::Point(100,100);
+          // padding_points[1]= cv::Point(100,0);
+
+          padding_points[0]= cv::Point(cx+safex,cy);
+          padding_points[1]= cv::Point(cx,cy+safey);
+          padding_points[2]= cv::Point(cx-safex,cy);
+          padding_points[3]= cv::Point(cx,cy-safey);
+          // std::cout<<"padding_points added"<<std::endl;
+          cv::fillConvexPoly(occupancy_map, padding_points,4, cv::Scalar(255,0,0));
+          cv::fillConvexPoly(occupancy_map_raw, padding_points,4, cv::Scalar(255,0,0));
+
+          // cv::ellipse(occupancy_map,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(255,0,0), -1);
+          // //TODO: consider the area of obstacle padding && outside lane
+          // cv::ellipse(occupancy_map_raw,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(100,0,0), -1);
           cv::rectangle(occupancy_map_raw,cv::Point(cx1, cy1), cv::Point(cx2, cy2), cv::Scalar(255,0,0), -1);
         }
       }
     }
   }
-  z_print("CV CAR BOUNDARY");
-  cv::rectangle(occupancy_map,cv::Point(map_width/2 - (int)(vehicle_width/map_resol), map_height-1), cv::Point(map_width/2 + (int)(vehicle_width/map_resol), map_height-1 - (int)(vehicle_length/2*map_resol)), cv::Scalar(0,0,0), -1);
   //Z_DEBUG
   if(MAP_DEBUG) {
-    // cv::rectangle(occupancy_map,cv::Point(0,0), cv::Point(map_width/2,5), cv::Scalar(255,0,0), -1);
-    // cv::circle(occupancy_map, cv::Point(map_width/2,map_height/2-20),15,cv::Scalar(255,0,0), -1);
-    // //cv::rectangle(occupancy_map,cv::Point(map_width/2-60, map_height/2-20), cv::Point(map_width/2-48, map_height/2+20), cv::Scalar(255,0,0), -1);
-    // //cv::rectangle(occupancy_map,cv::Point(map_width/2+48, map_height/2+10), cv::Point(map_width/2+60, map_height/2+30), cv::Scalar(255,0,0), -1);
-    // obstacle_count = 10;
+    cv::rectangle(occupancy_map,cv::Point(0,0), cv::Point(map_width/2,5), cv::Scalar(255,0,0), -1);
+    cv::circle(occupancy_map, cv::Point(map_width/2,map_height/2-20),15,cv::Scalar(255,0,0), -1);
+    cv::circle(occupancy_map, cv::Point(map_width/2-10,map_height-20),5,cv::Scalar(255,0,0), -1);
+
+    //cv::rectangle(occupancy_map,cv::Point(map_width/2-60, map_height/2-20), cv::Point(map_width/2-48, map_height/2+20), cv::Scalar(255,0,0), -1);
+    //cv::rectangle(occupancy_map,cv::Point(map_width/2+48, map_height/2+10), cv::Point(map_width/2+60, map_height/2+30), cv::Scalar(255,0,0), -1);
+    obstacle_count = 10;
   }
+  cv::rectangle(occupancy_map,cv::Point(map_width/2 - (int)(0.5*vehicle_width/map_resol), map_height-1 - (int)(0.5*vehicle_length/map_resol)), cv::Point(map_width/2 + (int)(0.5*vehicle_width/map_resol), map_height-1), cv::Scalar(0,0,0), -1);
+  if (is_occupied_x != 0 && is_occupied_y != 0) cv::line(occupancy_map_raw,cv::Point(map_width/2, map_height - (int)(map_offset/map_resol)), cv::Point(is_occupied_x, is_occupied_y), cv::Scalar(255,150,150), 1);
+
   return obstacle_count;
 }
 
@@ -248,7 +294,7 @@ int drawObjects() {
     return flag_obstacle;
 }
 
-void publishMessages(int flag_obstacle) {
+void publishMessages(int flag_obstacle, ros::NodeHandle& nh) {
 
   //cv_ptr = cv_bridge::toCvShare(map, sensor_msgs::image_encodings::BGR8);
   msgMapImg->header.stamp = ros::Time::now();
@@ -263,8 +309,12 @@ void publishMessages(int flag_obstacle) {
 
   msg_flag_obstacle.data = flag_obstacle;
   flag_obstacle_publisher.publish(msg_flag_obstacle);
-  cout<<"estop_count : "<<estop_count <<endl;
-  if(estop_count > estop_count_threshold) {
+  // cout<<"estop_count : "<<estop_count <<endl;
+
+  //TODO: for contest, activate this
+  int uturn_mode;
+  nh.getParam("/uturn_mode", uturn_mode);
+  if(estop_count > estop_count_threshold && uturn_mode != 2) {
     msg_emergency_stop.header.stamp = ros::Time::now();
     msg_emergency_stop.estop = 1;
     emergency_publisher.publish(msg_emergency_stop);
@@ -303,7 +353,16 @@ void callbackLane(const sensor_msgs::ImageConstPtr& msg_lane_map)
   // }
 }
 
-void callbackObstacle(const core_msgs::ROIPointArrayConstPtr& msg_obstacle)
+void callbackPark(ros::NodeHandle& nh, const core_msgs::ParkPointsConstPtr& msg_park){
+  float goal_x = msg_park->goal_point.x;
+  float goal_y = msg_park->goal_point.y;
+ if(!isOccupied(goal_x, goal_y) && !is_set_parkmode){
+   nh.setParam("/park_mode",2);
+   is_set_parkmode = true;
+ }
+}
+
+void callbackObstacle(const core_msgs::ROIPointArrayConstPtr& msg_obstacle, ros::NodeHandle& nh)
 {
   //if(Z_DEBUG) std::cout<<"callbackObstacle of Map Generator called!"<<std::endl;
   map_mutex_.lock();
@@ -317,7 +376,7 @@ void callbackObstacle(const core_msgs::ROIPointArrayConstPtr& msg_obstacle)
   map_mutex_.unlock();
 
   int flag_obstacle = drawObjects();
-  publishMessages(flag_obstacle);
+  publishMessages(flag_obstacle,nh);
 }
 
 
@@ -398,8 +457,8 @@ int main(int argc, char** argv)
   msgMapRawImg.reset(new sensor_msgs::Image);
 
   ros::Subscriber laneSub = nh.subscribe("/lane_map",1,callbackLane);
-  ros::Subscriber obstacleSub = nh.subscribe("/obstacle_points",1,callbackObstacle);
-
+  ros::Subscriber obstacleSub = nh.subscribe<core_msgs::ROIPointArray>("/obstacle_points",1,boost::bind(&callbackObstacle, _1, boost::ref(nh)));
+  ros::Subscriber parkSub = nh.subscribe<core_msgs::ParkPoints>("/initial_points_for_park",1,boost::bind(&callbackPark, boost::ref(nh), _1));
   ros::Subscriber endSub = nh.subscribe("/end_system",1,callbackTerminate);
   ros::spin();
   return 0;
