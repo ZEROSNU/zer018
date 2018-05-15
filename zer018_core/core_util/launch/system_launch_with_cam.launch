@@ -17,6 +17,6 @@
   <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ /control /flag_obstacle /lane_map/compressed /monitor/compressed /occupancy_map/compressed /occupancy_map_raw/compressed /path /sPath /scan /planning_target /vehicle_state /warped_image/compressed /waypoints /path_tracking /updated_cpoint /updated_ppoint"/>
   <!-- <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ -a"/> -->
   <node name="monitor_window" pkg="zero_monitor" type="monitor_window.py"/>
-  <node name="stopline" pkg = "zero_mission" type = "stopline.py" output = "screen"/>
+  <!-- <node name="stopline" pkg = "zero_mission" type = "stopline.py" output = "screen"/> -->
   <!-- <node name = "traffic_camera_node" pkg = "zero_mission" type = "traffic_camera_node.py" output = "screen"/> -->
 </launch>

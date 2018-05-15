@@ -224,7 +224,7 @@ class tracker :
                         delta_t = time_indicator - _past_t
                   else:
                         delta_t = time_indicator - using_state_time
-                  beta = np.arctan( (self.lr / self.L) * np.tan( -using_state.steer / 180 * np.pi))
+                  beta = np.arctan( (self.lr / self.L) * np.tan( -using_state.steer / 180 * np.pi)) #atan2
                   if beta != 0 :
                         R = self.lr / np.sin(beta)
                         yaw_rate = using_state.speed / R
