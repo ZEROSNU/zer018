@@ -1,8 +1,17 @@
 <launch>
-  <node pkg="rosbag" type="play" name="player" args="--clock /home/snuzero/bagfiles/0511-18-02-38_without_control_and_path_tracking.bag"/>
+  <param name = "park_mode" value = "0" />
+  <param name = "uturn_mode" value = "0" />
+  <!-- <node pkg="rosbag" type="play" name="player" args="/home/snuzero/bagfiles/_2018-05-14-12-17-35_PPOINT_UPDATE_BUG.bag"/> -->
+
+  <!-- <node pkg="rosbag" type="play" name="player" args="/home/snuzero/bagfiles/_2018-05-14-12-28-11_PPOINT_BUG_AND_GOALFREE_FAIL.bag"/> -->
+  <!-- <node pk  g="rosbag" type="play" name="player" args="/home/snuzero/bagfiles/ppoint_bug_without_updated_ppoint.bag"/> -->
+  <!-- <node pkg="rosbag" type="play" name="player" args="/home/snuzero/bagfiles/normal.bag"/> -->
+  <node pkg="rosbag" type="play" name="player" args="/home/snuzero/bagfiles/BUG_WITHOUT_C.bag"/>
+  <!-- <node pkg="rosbag" type="play" name="player" args="/home/snuzero/bagfiles/_2018-05-14-12-29-47_NORMAL.bag"/> -->
+
   <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py" output = "screen"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args= "true true"/>
-  <node name="republish" pkg = "image_transport" type = "republish" args = "compressed in:=/occupancy_map/compressed raw out:=/occupancy_map/rosbag"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args= "true true false"/>
+  <!-- <node name="republish" pkg = "image_transport" type = "republish" args = "compressed in:=/occupancy_map/compressed raw out:=/occupancy_map/rosbag"/> -->
   <node name="monitor_window_for_rosbag" pkg="zero_monitor" type="monitor_window_for_rosbag.py"/>
 
 </launch>

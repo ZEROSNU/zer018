@@ -7,9 +7,9 @@
   <node pkg = "lms1xx" type="LMS1xx_node" name="lms1xx" output="screen"/>
   <node pkg = "lms_client" type="lms_client" name="lms_client" args="false"/>
 
-  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false" output="screen"/>
+  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false true" output="screen"/>
   <node name="astar_planner" pkg="astar_planner" type="path_planner"  output="screen"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false true"/>
 
   <node name="lane_detect" pkg="lane_vision" type="lane_detect.py"/>
   <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py"  output="screen"/>

@@ -40,8 +40,8 @@ int flag_obstacle = 0;
 int target_x = 0;
 int target_y = 0;
 
-image_transport::Publisher publishMonintorMap;
-sensor_msgs::ImagePtr msgMonitorMap;
+// image_transport::Publisher publishMonintorMap;
+// sensor_msgs::ImagePtr msgMonitorMap;
 
 
 using namespace HybridAStar;
@@ -166,20 +166,21 @@ void Astar::initializeLookups() {
 //nav_msgs::OccupancyGrid::Ptr grid;
 /// The start pose set through RViz
 
-void drawMonitorMap(Astar& astar) {
-  for(int i = 0; i< astar.smoothedPath.getPath().pathpoints.size(); i++) {
-    int px = (int)astar.smoothedPath.getPath().pathpoints.at(i).x;
-    int py = (int)astar.smoothedPath.getPath().pathpoints.at(i).y;
-    astar.gridmap.at<cv::Vec3b>(cv::Point(px,py)) = cv::Vec3b(0,255,0);
-  }
-  msgMonitorMap = cv_bridge::CvImage(std_msgs::Header(),"rgb8", astar.gridmap).toImageMsg();
-  publishMonintorMap.publish(msgMonitorMap);
-
-}
+// void drawMonitorMap(Astar& astar) {
+//   for(int i = 0; i< astar.smoothedPath.getPath().pathpoints.size(); i++) {
+//     int px = (int)astar.smoothedPath.getPath().pathpoints.at(i).x;
+//     int py = (int)astar.smoothedPath.getPath().pathpoints.at(i).y;
+//     astar.gridmap.at<cv::Vec3b>(cv::Point(px,py)) = cv::Vec3b(0,255,0);
+//   }
+//   msgMonitorMap = cv_bridge::CvImage(std_msgs::Header(),"rgb8", astar.gridmap).toImageMsg();
+//   publishMonintorMap.publish(msgMonitorMap);
+//
+// }
 
 void callbackState(const core_msgs::VehicleStateConstPtr& msg_state) {
   delta = -(msg_state->steer)*M_PI/180.0;
-  if(msg_state->speed<20 && msg_state->speed>-20)  vel = msg_state->speed;
+  if(msg_state->speed<20.0 && msg_state->gear ==0)  vel = msg_state->speed;
+  else if(msg_state->speed<20.0 && msg_state->gear ==2)  vel = -msg_state->speed;
 }
 
 
@@ -191,13 +192,19 @@ void callbackTerminate(const std_msgs::Int32Ptr& record) {
 void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
 {
   if(Z_DEBUG && flag_obstacle!=0)  std::cout << "------------------------------------------------------------------" << std::endl;
-  if(flag_obstacle==0) return;
+  if(flag_obstacle==0) {
+    std::cout<<flag_obstacle<<std::endl;
+    return;
+  }
+  if(target_x <= 0 && target_y <= 0) {
+    return;
+  }
   // if()
   ros::Time map_time = msg_map->header.stamp; //the time when the map is recorded
   ros::Time t0 = ros::Time::now();
 
   astar.initializeLookups();
-
+  // z_print("here!");
   cv_bridge::CvImageConstPtr cv_ptr;
   try
   {
@@ -247,11 +254,10 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
   astar.voronoiDiagram.visualize(vorono_path_chr);
   //free won't work, is it neccessary?
   //free((char*)vorono_path_chr);
-  //DEBUG
   ros::Time t1 = ros::Time::now();
   ros::Duration d(t1 - t0);
   //std::cout << "created Voronoi Diagram in ms: " << d * 1000 << std::endl;
-
+  z_print("created Voronoi Diagram");
   // assign the values to start from base_link
   geometry_msgs::PoseWithCovarianceStamped start;
   //setting start point
@@ -259,10 +265,19 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
   //TODO: change this later according to it
   // std::cout<<"yaw_delta in rad is"<<yaw_delta<<std::endl;
   start.pose.pose.position.y = map_width/2 - x_delay_shift;
-  start.pose.pose.position.x = map_height - y_delay_shift; // x and y flips for the input of path planning
+  start.pose.pose.position.x = map_height -1 - y_delay_shift;
+  if (start.pose.pose.position.y < 0) {
+    start.pose.pose.position.y = 0;
+  }
+  else if (start.pose.pose.position.y > map_width-1) start.pose.pose.position.y = map_width-1;
+  if (start.pose.pose.position.x < 0) {
+    start.pose.pose.position.x = 0;
+  }
+  else if (start.pose.pose.position.y > map_height-1) start.pose.pose.position.y = map_height-1;
+   // x and y flips for the input of path planning
   // std::cout<<"start x and y is ("<<start.pose.pose.position.x<<", "<<start.pose.pose.position.y<<")"<<std::endl;
-  if(binMap[(int)(map_height-1 - y_delay_shift)][(int)(map_width/2 - x_delay_shift)]) {
-    // std::cout<<"start x and y is in the occupied region"<<std::endl;
+  if(binMap[(int)(start.pose.pose.position.x)][(int)(start.pose.pose.position.y)]) {
+    z_print("start x and y is in the occupied region");
     return;
   }
 
@@ -275,26 +290,32 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
   geometry_msgs::PoseStamped goal;
   goal.pose.position.y = target_y;
   goal.pose.position.x = target_x;
+  if (goal.pose.position.y < 0) {
+    goal.pose.position.y = 0;
+  }
+  else if (goal.pose.position.y > map_width-1) goal.pose.position.y = map_width-1;
+  if (goal.pose.position.x < 0) {
+    goal.pose.position.x = 0;
+  }
+  else if (goal.pose.position.y > map_height-1) goal.pose.position.y = map_height-1;
+
   tf::Quaternion q_goal = tf::createQuaternionFromRPY(0, 0, M_PI);
   tf::quaternionTFToMsg(q_goal,goal.pose.orientation);
   // std::cout<<"goal x and y is ("<<goal.pose.position.x<<", "<<goal.pose.position.y<<")"<<std::endl;
-  if(binMap[target_x][target_y]) {
-    // std::cout<<"goal x and y is in the occupied region"<<std::endl;
+  if(binMap[(int)(goal.pose.position.x)][(int)(goal.pose.position.y)]) {
+    z_print("goal x and y is in the occupied region");
     return;
   }
 
-  if(!binMap[(int)(map_height-1 - y_delay_shift)][(int)(map_width/2 - x_delay_shift)] && !binMap[target_x][target_y]) {
-    // std::cout << "start and goal set properly!! " << std::endl;
-  }
 
   astar.plan(start, goal);
-  drawMonitorMap(astar);
+  // drawMonitorMap(astar);
   ros::Time t2 = ros::Time::now();
   ros::Duration d_final(t2 - t0);
   // cout<<"the delay ground truth is: " <<d_final.toSec()<<" sec" <<endl;
 
   delay = 0.4 * 0.4 + delay * 0.36 + d_final.toSec() * 0.24;
-  // cout<<"the delay for planning is: " <<delay<<" sec" <<endl;
+  z_print("final position for the callback");
 }
 
 void callbackFlagObstacle(const std_msgs::Int32::ConstPtr & msg_flag_obstacle) {
@@ -325,8 +346,8 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh;
   // this is for monitoring
   image_transport::ImageTransport it(nh);
-  publishMonintorMap = it.advertise("/monitor_map",1);
-  msgMonitorMap.reset(new sensor_msgs::Image);
+  // publishMonintorMap = it.advertise("/monitor_map",1);
+  // msgMonitorMap.reset(new sensor_msgs::Image);
 
   ros::Subscriber stateSub = nh.subscribe("/vehicle_state",1,callbackState);
   ros::Subscriber flagobstacleSub = nh.subscribe("/flag_obstacle",1,callbackFlagObstacle);

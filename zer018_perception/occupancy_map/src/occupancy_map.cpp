@@ -37,6 +37,8 @@
 #define min(a,b) ((a)<(b)?(a):(b))
 #define RAD2DEG(x) ((x)*180./M_PI)
 bool MAP_DEBUG=false;
+bool IS_RECORD = false;
+
 std::string config_path;
 
 
@@ -121,7 +123,7 @@ bool isOccupied(float x, float y) {
     //cout<<"HERE"<<endl;
     float range_i = obstacle_points.at(i).x;
     float theta_i = obstacle_points.at(i).y;//in radian
-    if(abs(theta_i - theta) <0.36 && range_i < r + 0.4 && range_i >min_range && range_i<max_range)
+    if(abs(theta_i - theta) <0.36 && range_i < r + 0.4 && range_i >min_range && range_i<5.0)
     {
       std::cout << "occupied! " <<std::endl;
       int obstacle_x = range_i*cos(theta_i);
@@ -147,12 +149,16 @@ int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
     //cout<<"HERE"<<endl;
     float range_i = _obstacle_points.at(i).x;
     float theta_i = _obstacle_points.at(i).y;//in radian
-    if(range_i > 0 && range_i < estop_range_threshold && RAD2DEG(theta_i) >= estop_angle_min && RAD2DEG(theta_i) <= estop_angle_max) estop_count++;
+    if(range_i > 0.05 && range_i < estop_range_threshold && RAD2DEG(theta_i) >= estop_angle_min && RAD2DEG(theta_i) <= estop_angle_max) {
+      estop_count++;
+      // std::cout<<RAD2DEG(theta_i);
+      // std::cout<<", "<<range_i<<std::endl;
+    }
     if(range_i>min_range && range_i<max_range && RAD2DEG(theta_i)>min_theta && RAD2DEG(theta_i)<max_theta){
-      obstacle_x = range_i*cos(theta_i);
-      obstacle_y = range_i*sin(theta_i);
-      cx = map_width/2 + (int)(obstacle_x/map_resol);
-      cy = map_height - (int)((obstacle_y+map_offset)/map_resol);
+      obstacle_y = range_i*cos(theta_i);
+      obstacle_x = range_i*sin(theta_i);
+      cx = map_width/2 + (int)(obstacle_y/map_resol);
+      cy = map_height - (int)((obstacle_x+map_offset)/map_resol);
       if(check_out(cx, cy)){
         if (lane_map_mono.at<uchar>(cy,cx)!=255) obstacle_count++;//only add number of obstacle when it is not outside the lane. this is very important.
         if(check_out(cx-paddingx, cy-paddingy)){
@@ -177,18 +183,27 @@ int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
 
         if(!MAP_DEBUG) {
           cv::Point padding_points[4];
-          // padding_points[0]= cv::Point(0,0);
-          // padding_points[3]= cv::Point(0,100);
-          // padding_points[2]= cv::Point(100,100);
-          // padding_points[1]= cv::Point(100,0);
-
           padding_points[0]= cv::Point(cx+safex,cy);
           padding_points[1]= cv::Point(cx,cy+safey);
           padding_points[2]= cv::Point(cx-safex,cy);
           padding_points[3]= cv::Point(cx,cy-safey);
+          // cv::Point padding_points[6];
+          // int tune = 10;
+          // padding_points[0]= cv::Point(cx+safex,cy-tune);
+          // padding_points[1]= cv::Point(cx+safex,cy+tune);
+          //
+          // padding_points[2]= cv::Point(cx, cy+safey);
+          //
+          // padding_points[3]= cv::Point(cx-safex,cy+tune);
+          // padding_points[4]= cv::Point(cx-safex,cy-tune);
+          //
+          // padding_points[5]= cv::Point(cx,cy-safey);
+
           // std::cout<<"padding_points added"<<std::endl;
           cv::fillConvexPoly(occupancy_map, padding_points,4, cv::Scalar(255,0,0));
-          cv::fillConvexPoly(occupancy_map_raw, padding_points,4, cv::Scalar(255,0,0));
+          cv::fillConvexPoly(occupancy_map_raw, padding_points,4, cv::Scalar(100,0,0));
+          // cv::fillConvexPoly(occupancy_map, padding_points,6, cv::Scalar(255,0,0));
+          // cv::fillConvexPoly(occupancy_map_raw, padding_points,6, cv::Scalar(100,0,0));
 
           // cv::ellipse(occupancy_map,cv::Point(cx,cy), cv::Size(safex, safey), 0.0, 0.0, 360.0, cv::Scalar(255,0,0), -1);
           // //TODO: consider the area of obstacle padding && outside lane
@@ -200,7 +215,9 @@ int drawObstaclePoints(std::vector<geometry_msgs::Vector3>& _obstacle_points) {
   }
   //Z_DEBUG
   if(MAP_DEBUG) {
-    cv::rectangle(occupancy_map,cv::Point(0,0), cv::Point(map_width/2,5), cv::Scalar(255,0,0), -1);
+    cv::rectangle(occupancy_map,cv::Point(0,0), cv::Point(map_width/2-20,5), cv::Scalar(255,0,0), -1);
+    cv::rectangle(occupancy_map,cv::Point(map_width/2+10,0), cv::Point(map_width/2+30,5), cv::Scalar(255,0,0), -1);
+
     cv::circle(occupancy_map, cv::Point(map_width/2,map_height/2-20),15,cv::Scalar(255,0,0), -1);
     cv::circle(occupancy_map, cv::Point(map_width/2-10,map_height-20),5,cv::Scalar(255,0,0), -1);
 
@@ -222,13 +239,14 @@ void drawLidarPosition() {
 
 void findTargetInOneRow(int & target_x, int & target_y, int row_index) {
   //TODO
-  int target_threshold = 20;
-  int index_lane_left = 0;
-  int index_lane_right = 199;
-  int index_free= 0;
+  // int target_threshold = 20;
+  int index_lane_left[] = {0, 0, 0, 0, 0};
+  int index_lane_right[] = {map_width -3, map_width -3, map_width -3, map_width -3, map_width -3};
+  int free_length[] = {0,0,0,0,0};
   // cout<<"first row: "<<endl;
-
-  for(int i = 0 ; i<map_width-1 ; i++) {
+  int left_i = 0;
+  int right_i = 0;
+  for(int i = 2 ; i<map_width-3 ; i++) {
     cv::Vec3b px_val1 = occupancy_map.at<cv::Vec3b>(row_index,i);
     cv::Vec3b px_val2 = occupancy_map.at<cv::Vec3b>(row_index,i+1);
     //if(x == width/2 && y == height/2) std::cout<<"the red pix value of map center is "<<(int)px_val.val[0]<<std::endl;
@@ -237,19 +255,75 @@ void findTargetInOneRow(int & target_x, int & target_y, int row_index) {
 
     // if(isred1) cout<<1;
     // else cout<<0;
-    if(isred1 && !isred2) index_lane_left=i;
-    else if(!isred1 && isred2 && i < index_lane_right) index_lane_right = i;
-    if(!isred1) index_free++;
+    if(isred1 && !isred2 && left_i < 5) {
+      index_lane_left[left_i]=i;
+      left_i++;
+    }
+    else if(!isred1 && isred2 & right_i < 5) {
+      index_lane_right[right_i] = i;
+      right_i++;
+    }
   }
-  // cout<<endl;
-  //cout<<"index_lane_left: "<<index_lane_left<<" and right: "<<index_lane_right<<", free length is: "<<index_free<<endl;
-  if(index_free == 0) findTargetInOneRow(target_x, target_y, row_index+1);
+  if (left_i == 0 && right_i == 0) {
+    // std::cout<<"going to next row -first cond."<<std::endl;
+    findTargetInOneRow(target_x, target_y, row_index+1);
+    return;
+  }
+  if (left_i != right_i) {
+    // std::cout<<"left and right index different, target may not be valid"<<std::endl;
+    // std::cout<<"left_i: "<<left_i<<", righ_i: "<<right_i<<std::endl;
+  }
+  if (left_i <= right_i){
+    if(left_i == 0) {//this means that right_i = 0
+      free_length[0] = index_lane_right[0] - index_lane_left[0];
+    }
+    else if(index_lane_right[0] < index_lane_left[0]) {
+      for (int j = 0; j< left_i-1; j++) {
+        if(index_lane_right[j+1] != map_width - 3)
+          free_length[j] = index_lane_right[j+1] - index_lane_left[j];
+      }
+    }
+    else {
+      for (int j = 0; j< left_i; j++) {
+        if(index_lane_right[j] != map_width - 3)
+          free_length[j] = index_lane_right[j] - index_lane_left[j];
+      }
+    }
+  }
+  else {//when right_i < left_i
+    if(right_i == 0) {
+      free_length[0] = index_lane_right[0] - index_lane_left[0];
+    }
+    else if(index_lane_right[0] < index_lane_left[0]) {
+      for (int j = 0; j< right_i-1; j++) {
+        if(index_lane_left[j] != 0)
+          free_length[j] = index_lane_right[j+1] - index_lane_left[j];
+      }
+    }
+    else {
+      for (int j = 0; j< right_i; j++) {
+        if(index_lane_left[j] != 0)
+          free_length[j] = index_lane_right[j] - index_lane_left[j];
+      }
+    }
+  }
+  int final_free = *std::max_element(free_length, free_length+5);
+  int index_final_free = std::distance(free_length, std::max_element(free_length, free_length+5));
+  int final_free_left = index_lane_left[index_final_free];
+  int final_free_right;
+  if(index_lane_right[index_final_free] > final_free_left) final_free_right = index_lane_right[index_final_free];
+  else final_free_right = index_lane_right[index_final_free + 1];
+  if(final_free == 0) {
+    findTargetInOneRow(target_x, target_y, row_index+1);
+    std::cout<<"going to next row -second cond."<<std::endl;
+  }
   else {
-    target_x = index_lane_left + index_free/ 2;
+    target_x = (final_free_left + final_free_right)/ 2;
     target_y = row_index;
     return;
   }
-  if(index_free == 0 && row_index >=20) {
+  if(final_free == 0 && row_index >=50) {
+    std::cout<< "invalid target" << std::endl;
     target_x = -1;//target invalid
     target_y = -1;
     return;
@@ -259,7 +333,7 @@ void findTargetInOneRow(int & target_x, int & target_y, int row_index) {
 void drawTargetPoint(int flag_obstacle) {
   int target_x=0;
   int target_y=0;
-  findTargetInOneRow(target_x, target_y, 1);
+  findTargetInOneRow(target_x, target_y, 5);
   if(target_x < 0) return;//target invalid
 
   cv::Vec3b px_val = occupancy_map_raw.at<cv::Vec3b>(cv::Point(target_x,target_y));
@@ -305,7 +379,7 @@ void publishMessages(int flag_obstacle, ros::NodeHandle& nh) {
   msgMapRawImg = cv_bridge::CvImage(std_msgs::Header(),"rgb8", occupancy_map_raw).toImageMsg();
   publishMapRawImg.publish(msgMapRawImg);
 
-  outputVideo << occupancy_map;
+  if(IS_RECORD)  outputVideo << occupancy_map;
 
   msg_flag_obstacle.data = flag_obstacle;
   flag_obstacle_publisher.publish(msg_flag_obstacle);
@@ -314,9 +388,13 @@ void publishMessages(int flag_obstacle, ros::NodeHandle& nh) {
   //TODO: for contest, activate this
   int uturn_mode;
   nh.getParam("/uturn_mode", uturn_mode);
+  // std::cout<<"estop count is "<<estop_count<<std::endl;
+
+  //DEBUG
   if(estop_count > estop_count_threshold && uturn_mode != 2) {
     msg_emergency_stop.header.stamp = ros::Time::now();
-    msg_emergency_stop.estop = 1;
+    msg_emergency_stop.estop = estop_count;
+    // std::cout<<"estop message occured and count is "<<estop_count<<std::endl;
     emergency_publisher.publish(msg_emergency_stop);
   }
 
@@ -381,17 +459,12 @@ void callbackObstacle(const core_msgs::ROIPointArrayConstPtr& msg_obstacle, ros:
 
 
 void callbackTerminate(const std_msgs::Int32Ptr& record){
-  //if(flag_record){
+
+  if(IS_RECORD) {
     outputVideo.release();
-  //}
 
-  // std::string path = ros::package::getPath("map_generator");
-  // path += "/../../../data/test_data/";
-  // cv::Mat map_resized = cv::Mat::zeros(800,800,CV_8UC3);
-  // cv::resize(occupancy_map, map_resized, cv::Size(800,800), 0,0, CV_8UC3);
-  // cv::imwrite(path+"map.png",map_resized);
-
-  ROS_INFO("Video recording safely terminated");
+    ROS_INFO("Video recording safely terminated");
+  }
   ros::shutdown();
   return;
 }
@@ -402,13 +475,15 @@ void callbackTerminate(const std_msgs::Int32Ptr& record){
 int main(int argc, char** argv)
 {
   //argument setting initialization
-  if(argc < 2)  {
-      std::cout << "usage: rosrun map_generator map_generator_node debug_mode" << std::endl;
+  if(argc < 3)  {
+      std::cout << "usage: rosrun map_generator map_generator_node debug_mode is_record" << std::endl;
       std::cout << "debug_mode is true for debug" << std::endl;
+      std::cout << "is_record is true for video recording of the map"<<std::endl;
       return -1;
   }
 
   if (!strcmp(argv[1], "true")) MAP_DEBUG = true;
+  if (!strcmp(argv[2],"true")) IS_RECORD = true;
   std::string record_path = ros::package::getPath("core_util");
   //TODO: add date&time to the file name
   record_path += "/data/";
@@ -418,25 +493,25 @@ int main(int argc, char** argv)
 
   time (&rawtime);
   timeinfo = localtime(&rawtime);
-  strftime(buffer,sizeof(buffer),"%m%d-%Y_%I:%M:%S",timeinfo);
+  strftime(buffer,sizeof(buffer),"%y%m%d-%H:%M:%S",timeinfo);
   std::string date_str(buffer);
   record_path += date_str;
-  record_path += "_map.mp4";
 
   ROS_INFO_STREAM(record_path);
-  //if(flag_record) {
 
-  //TODO: change root path later
   config_path = ros::package::getPath("core_util");
   config_path += "/config/system_config.yaml";
   cv::FileStorage params_config(config_path, cv::FileStorage::READ);
   lane_width = params_config["Road.lanewidth"];
 
   mapInit(params_config);
-  bool isVideoOpened =  outputVideo.open(record_path, CV_FOURCC('X', '2', '6', '4'), 20, cv::Size(map_width,map_height), true);
-  //}
-  if(isVideoOpened)
-    ROS_INFO("video starts recorded!");
+  bool isVideoOpened = false;
+  if(IS_RECORD) {
+    record_path += "_map.mp4";
+    isVideoOpened = outputVideo.open(record_path, CV_FOURCC('X', '2', '6', '4'), 20, cv::Size(map_width,map_height), true);
+    if(isVideoOpened)
+     ROS_INFO("video starts recorded!");
+  }
 
   occupancy_map = cv::Mat::zeros(map_height,map_width,CV_8UC3);
   occupancy_map_raw = cv::Mat::zeros(map_height,map_width,CV_8UC3);

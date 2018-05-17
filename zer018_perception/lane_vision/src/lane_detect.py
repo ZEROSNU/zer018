@@ -10,15 +10,16 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from core_msgs.msg import CenPoint, ParkPoints
 from geometry_msgs.msg import Vector3
+import copy
 
 
 '''
 BEST WORKING CODE
 '''
+Z_DEBUG = False
 
-# LEAVE PARKING MODE TRUE
 # parking_mode = True
-uturn_mode = 1
+# uturn_mode = 1
 
 # define values boundaries for color
 lower_yellow = np.array([15,40,150],np.uint8)
@@ -26,10 +27,12 @@ upper_yellow = np.array([40,255,255],np.uint8)
 # lower_white_hsv = np.array([0, 0, 150], np.uint8)
 
 #DUBUGGING! GREEN 
-# lower_white_hsv = np.array([50, 40, 0], np.uint8) 
-# upper_white_hsv = np.array([100, 255, 255], np.uint8)
-lower_white_hsv = np.array([0,0,200], np.uint8)
-upper_white_hsv = np.array([255,50,255], np.uint8)
+if Z_DEBUG:
+    lower_white_hsv = np.array([50, 40, 0], np.uint8) 
+    upper_white_hsv = np.array([100, 255, 255], np.uint8)
+else:
+    lower_white_hsv = np.array([0,0,200], np.uint8)
+    upper_white_hsv = np.array([255,50,255], np.uint8)
 
 lower_white_rgb = np.array([190,190,190], np.uint8)
 upper_white_rgb = np.array([255,255,255], np.uint8)
@@ -208,6 +211,7 @@ def imagecallback(msg):
     # CREATE FITTING, DRAW ON IMAGE
     polypoints = np.zeros((600,2))
     polypoints_right = np.zeros((600,2))
+    polypoints_left = np.zeros((600,2))
     t = np.arange(0,600,1)
     f = np.poly1d(coefficients)
 
@@ -267,7 +271,7 @@ def imagecallback(msg):
 
     '''
     ------------------------------------------------------------------------
-    CREATE RIGHT LANE
+    CREATE RIGHT LANE (AND LEFT LANE NEW OFFSET)
     ------------------------------------------------------------------------
     '''
 
@@ -282,13 +286,21 @@ def imagecallback(msg):
     polypoints_right[:,1] = polypoints[:,1] + np.sin(theta - np.pi/2)*(lane_width-30)
     coeff_right = np.polyfit(polypoints_right[:,0], polypoints_right[:,1], poly_order)
     f_right = np.poly1d(coeff_right)
-    projection_point = 300
+
+    # shift left lane by 0.3m inwards - helps with Path planner mode selection
+    polypoints_left[:,0] = np.cos(theta-np.pi/2) * (30) + t
+    polypoints_left[:,1] = polypoints[:,1] + np.sin(theta - np.pi/2) * (30)
+    coeff_left = np.polyfit(polypoints_left[:,0], polypoints_left[:,1], poly_order)
+    # f_left = np.poly1d(coeff_left)
+
+    projection_point = 400
+    projection_addition = 150
 
     #array vs float
     if rospy.get_param('park_mode')==1:
         if type(theta)==np.float64:
-            x_waypoint = np.cos(theta-np.pi/2)*(lane_width/4) +projection_point
-            y_waypoint = np.sin(theta-np.pi/2) * lane_width/4 + f(projection_point)
+            x_waypoint = np.cos(theta-np.pi/2)*(lane_width/3) +projection_point
+            y_waypoint = np.sin(theta-np.pi/2) * lane_width/3 + f(projection_point)
         else:
             x_waypoint = np.cos(theta[projection_point]-np.pi/2)*lane_width/4 +projection_point
             y_waypoint = np.sin(theta[projection_point]-np.pi/2)*lane_width/4 +f(projection_point)
@@ -303,11 +315,19 @@ def imagecallback(msg):
         
     else:
         if type(theta)==np.float64:
-            x_waypoint = np.cos(theta-np.pi/2)*lane_width/2 +projection_point
-            y_waypoint = np.sin(theta-np.pi/2) * lane_width/2 + f(projection_point)
+            if abs(np.degrees(theta))>=30:
+                x_waypoint = np.cos(theta-np.pi/2)*lane_width/2 +projection_point+projection_addition
+                y_waypoint = np.sin(theta-np.pi/2) * lane_width/2 + f(projection_point+projection_addition)
+            else:
+                x_waypoint = np.cos(theta-np.pi/2)*lane_width/2 +projection_point
+                y_waypoint = np.sin(theta-np.pi/2) * lane_width/2 + f(projection_point)
         else:
-            x_waypoint = np.cos(theta[projection_point]-np.pi/2)*lane_width/2 +projection_point
-            y_waypoint = np.sin(theta[projection_point]-np.pi/2)*lane_width/2 +f(projection_point)
+            if abs(np.degrees(theta[projection_point]))>=30:
+                x_waypoint = np.cos(theta[projection_point+projection_addition]-np.pi/2)*lane_width/2 +projection_point+projection_addition
+                y_waypoint = np.sin(theta[projection_point+projection_addition]-np.pi/2)*lane_width/2 +f(projection_point+projection_addition)
+            else:
+                x_waypoint = np.cos(theta[projection_point]-np.pi/2)*lane_width/2 +projection_point
+                y_waypoint = np.sin(theta[projection_point]-np.pi/2)*lane_width/2 +f(projection_point)
 
 
     polypoints_right[:,0] = t
@@ -327,12 +347,12 @@ def imagecallback(msg):
     '''
     mask = np.arange(0,600,1)       # create x values
     mask1 = np.arange(0,600,1)
-    if (len(coefficients)==3):
-        mask = coefficients[0] * mask*mask + coefficients[1]*mask + coefficients[2]
+    if (len(coeff_left)==3):
+        mask = coeff_left[0] * mask*mask + coeff_left[1]*mask + coeff_left[2]
         mask = np.zeros((600,600)) + mask           #broadcast into 2d
 
     else:
-        mask = coefficients[0]*mask + coefficients[1]
+        mask = coeff_left[0]*mask + coeff_left[1]
         mask = np.zeros((600,600)) + mask           #broadcast into 2d 600 by 600
 
 
@@ -372,7 +392,7 @@ def imagecallback(msg):
     '''
     #PARKING
     if rospy.get_param('park_mode') == 1:
-        lines = cv2.HoughLinesP(edges,1,np.pi/180,50, minLineLength=10, maxLineGap = 5)
+        lines = cv2.HoughLinesP(edges,1,np.pi/180,50, minLineLength=5, maxLineGap = 5)
         intersection_x = []
         intersection_y = []
         lane_angle = np.arctan2(coeff_right[1],1)
@@ -406,14 +426,25 @@ def imagecallback(msg):
 
             point1 = np.array(centroids[0,:]).astype(int)
             point2 = np.array(centroids[1,:]).astype(int)
+
+            #always point1 larger value
+            if (point1[0] < point2[0]):
+                temp = copy.deepcopy(point2)
+                point2 = copy.deepcopy(point1)
+                point1=temp
+
             distance_points = np.linalg.norm(point1-point2)
             if (distance_points > 200):     # TUNE THIS VALUE 250
                 cv2.circle(img, (point1[0], point1[1]), 2, (0, 255, 0), 4)
                 cv2.circle(img, (point2[0], point2[1]), 2, (0, 255, 0), 4)
-                point3 = np.array([(point2[0]+point1[0])/2, (point2[1]+point1[1])/2]).astype(int)
+                point3 = np.array([(3*point2[0]+2*point1[0])/5, (3*point2[1]+2*point1[1])/5]).astype(int)
                 cv2.circle(img, (point3[0], point3[1]), 2, (0, 252, 255), 4)
-                target_point_x = point3[0] + 250*np.cos(lane_angle + np.radians(-70))
-                target_point_y = point3[1] + 250*np.sin(lane_angle + np.radians(-70))
+                if Z_DEBUG:
+                    target_point_x = point3[0] + 200*np.cos(lane_angle + np.radians(-70))
+                    target_point_y = point3[1] + 200*np.sin(lane_angle + np.radians(-70))
+                else:
+                    target_point_x = point3[0] + 200*np.cos(lane_angle + np.radians(-70))
+                    target_point_y = point3[1] + 200*np.sin(lane_angle + np.radians(-70))
                 cv2.circle(img, (int(target_point_x), int(target_point_y)), 4, (0,0,255), 8)
 
                 #publish data
@@ -426,7 +457,7 @@ def imagecallback(msg):
     if rospy.get_param('/uturn_mode') ==1:
         red_mask_roi = red_mask[:,400:450]
         red_mask_roi = red_mask_roi[red_mask_roi==255]
-        if (red_mask_roi.size > 3000):
+        if (red_mask_roi.size > 10000):
             rospy.set_param('/uturn_mode', 2)
             print("UTURN MODE")
 

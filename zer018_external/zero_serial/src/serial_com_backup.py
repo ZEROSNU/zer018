@@ -55,14 +55,9 @@ def MsgUpdate(msg,ser): #message about current sate (serial data : platform->upp
     data = []
     for i in range(0,18):
         data.append(hex(int(raw_data[i].encode('hex'),16)))
-    if int(data[0],16) != 83 or int(data[1],16) != 84 or int(data[2],16) != 88: return msg #starting byte check
-
-
     is_auto = int(data[3],16)
     estop = int(data[4],16)
     if(estop == 16):
-        estop = 0
-    elif(estop == 17):
         estop = 1
     gear = int(data[5],16)
 
@@ -70,10 +65,10 @@ def MsgUpdate(msg,ser): #message about current sate (serial data : platform->upp
     #Steer calculation # degree
     if(len(data[9])>=4):
         steer = int(data[9],16) * 256 + int(data[8],16) + 1 - pow(2,15)
-        steer = -float(steer)/71 +462 + 1
+        steer = -float(steer)/71 +462
     else:
         steer = int(data[9],16) * 256 + int(data[8],16)
-        steer = -float(steer)/71 + 1 
+        steer = -float(steer)/71
 
 
     brake = int(data[10],16)
@@ -121,7 +116,11 @@ def sendSerial(ser,data): #upper->platform
     steer2=data.steer2
     brake=data.brake
     global alive
- 
+    rospy.loginfo("speed " + str(speed))
+    rospy.loginfo("steer1 " + str(steer1))
+    rospy.loginfo("steer2 " + str(steer2))
+    rospy.loginfo("brake " + str(brake))
+    rospy.loginfo("alive " + str(alive))
     data_array = bytearray([83, 84, 88, is_auto, estop, gear, 0, speed, steer1, steer2, brake, alive, 13, 10])
     ser.write(data_array)
 
@@ -149,34 +148,23 @@ class getControlData(): #input:speed(m/s), steer(degree) -> output: speed(km/h *
         self.estop = data_.estop
         self.gear = data_.gear
         self.speed = int(float(data_.speed) * 3600 / 1000 * 10) # (m/s -> km/h * 10)
-        steer_tmp = int(float(data_.steer)*71) - 71
-        if steer_tmp >= 2000:
-            steer_tmp = 2000
-        elif steer_tmp <= -2000:
-            steer_tmp = -2000
-        
-        if steer_tmp >=0:
-            steer = steer_tmp
+        if data_.steer >=0:
+            steer = int(float(data_.steer)*71)
             steer_low = steer%256
             steer_high = (steer-steer_low)/256
         else:
-            steer = pow(2,15) + steer_tmp
+            steer = pow(2,15) + int(data_.steer*71)
             steer_low = steer%256
             steer_high = (steer-steer_low)/256 + pow(2,7)
-        if (steer_high >= 256):
-            steer_high = 255
-        if (steer_low >= 256):
-            steer_low = 255
+	if (steer_high >= 256):
+	    steer_high = 255
+	if (steer_low >= 256):
+	    steer_low = 255
 
-        self.steer1 = steer_high
+	self.steer1 = steer_high
         self.steer2 = steer_low
 
-        if data_.brake >= 200:
-            self.brake = data_.brake
-        elif data_.brake <=0:
-            self.brake = 1
-        else:
-            self.brake = data_.brake
+        self.brake = data_.brake
 
 
 

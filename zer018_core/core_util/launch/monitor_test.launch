@@ -4,13 +4,13 @@
   <param name = "park_mode" value = "0" />
 
   <node name="fake_camera_node" pkg="lane_vision" type="fake_camera_node.py"/>
-  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="true"  output ="screen"/>
+  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="true false"  output ="screen"/>
 
   <node name="astar_planner" pkg="astar_planner" type="path_planner"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args= "true false"  output ="screen"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args= "true false true"  output ="screen"/>
   <node name="lane_detect" pkg="lane_vision" type="lane_detect.py"/>
-  <node name="path_gen_tst" pkg = "path_tracker" type = "path_gen_tst.py" output ="screen"/>
-  <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py"/>
+  <node name="path_gen_tst" pkg = "path_tracker" type = "path_gen_tst.py"/>
+  <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py" output ="screen"/>
   <!-- <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ -a"/> -->
   <node name="monitor_window" pkg="zero_monitor" type="monitor_window.py"/>
 

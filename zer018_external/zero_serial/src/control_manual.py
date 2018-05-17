@@ -8,15 +8,15 @@ import serial
 import math
 import sys, select, termios, tty
 from std_msgs.msg import String
-from zero_serial.msg import control
+from core_msgs.msg import Control
 
 
 def init():
     
-    pub = rospy.Publisher('control', control, queue_size=10)
+    pub = rospy.Publisher('control', Control, queue_size=10)
     rospy.init_node('control_sender', anonymous=True)
     rate = rospy.Rate(20)
-    msg = control()
+    msg = Control()
     is_auto=1
     estop=0
     gear=0
@@ -34,12 +34,12 @@ def init():
             break
         elif key == 'a':
             steer = steer - 1
-            if steer <= -15 :
-                steer = -15
+            if steer <= -30 :
+                steer = -30
         elif key == 'd':
             steer = steer + 1
-            if steer >= 15 :
-                steer = 15
+            if steer >= 30 :
+                steer = 30
         elif key == 'w':
             speed = speed + 0.1
             if speed >= 3:

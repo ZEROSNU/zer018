@@ -32,6 +32,7 @@
 
 bool MONITOR_DEBUG=false;
 bool USE_ROSBAG = false;
+bool IS_RECORD = false;
 
 struct vehicle_state {
   bool is_auto;
@@ -186,15 +187,17 @@ void callbackPark(const core_msgs::ParkPointsConstPtr & msg_park) {
 }
 
 void callbackTerminate(const std_msgs::Int32Ptr& record){
-  outputMonitorVideo.release();
-  ROS_INFO("Monitor Video recording safely terminated");
+  if(IS_RECORD) {
+    outputMonitorVideo.release();
+    ROS_INFO("Monitor Video recording safely terminated");
+  }
   ros::shutdown();
   return;
 }
 
 void drawPath(cv::Mat &canvas) {
   if(vControl.control_mode == 2) {
-    std::cout<<"drawing path"<<std::endl;
+    //std::cout<<"drawing path"<<std::endl;
     for(int i= path_points.size()-1; i>=1;i--){
       int start_x = (int)(2*path_points.at(i).x);
       int start_y = (int)(2*path_points.at(i).y);
@@ -226,16 +229,17 @@ void drawPath(cv::Mat &canvas) {
 int main(int argc, char** argv)
 {
   //argument setting initialization
-  if(argc < 3)  {
-      std::cout << "usage: rosrun zero_monitor z_monitor debug_mode for_rosbag" << std::endl;
+  if(argc < 4)  {
+      std::cout << "usage: rosrun zero_monitor z_monitor debug_mode for_rosbag is_record" << std::endl;
       std::cout << "debug_mode is true for debug" << std::endl;
       std::cout << "for_rosbag is true for monitoring rosbag files" << std::endl;
-
+      std::cout << "is_record is true to record monitoring window as avi file" <<std::endl;
       return -1;
   }
 
   if (!strcmp(argv[1], "true")) MONITOR_DEBUG = true;
   if (!strcmp(argv[2], "true")) USE_ROSBAG = true;
+  if (!strcmp(argv[3], "true")) IS_RECORD = true;
 
   std::string record_path = ros::package::getPath("core_util");
   //TODO: add date&time to the file name
@@ -247,7 +251,7 @@ int main(int argc, char** argv)
 
   time (&rawtime);
   timeinfo = localtime(&rawtime);
-  strftime(buffer,sizeof(buffer),"%m%d-%Y_%I:%M:%S",timeinfo);
+  strftime(buffer,sizeof(buffer),"%y%m%d-%H:%M:%S",timeinfo);
   std::string date_str(buffer);
   record_path += date_str;
   record_path += "_monitor.avi";
@@ -267,10 +271,13 @@ int main(int argc, char** argv)
   float vehicle_width = params_config["Vehicle.width"];
   float vehicle_length_front = params_config["Vehicle.length_front"];
 
-  bool isVideoOpened =  outputMonitorVideo.open(record_path, CV_FOURCC('X', 'V', 'I', 'D'), 10, cv::Size(map_width*6, map_height*2+100), true);
+  bool isVideoOpened = false;
+  if(IS_RECORD) {
+    isVideoOpened =  outputMonitorVideo.open(record_path, CV_FOURCC('X', 'V', 'I', 'D'), 10, cv::Size(map_width*6, map_height*2+100), true);
 
-  if(isVideoOpened)
-    ROS_INFO("monitor video starts recorded!");
+    if(isVideoOpened)
+      ROS_INFO("monitor video starts recorded!");
+  }
 
   occupancy_map = cv::Mat::zeros(map_height,map_width,CV_8UC3);
   lane_topview = cv::Mat::zeros(map_height,map_width,CV_8UC3);
@@ -417,7 +424,7 @@ int main(int argc, char** argv)
     stream_state <<"vehicle state    count: " <<state_count;
     std::string state_text =  stream_state.str();
 
-    cv::putText(monitor_img, state_text, cv::Point(20, map_height*2+10), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
+    cv::putText(monitor_img, state_text, cv::Point(20, map_height*2+5), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
     std::string basic_state = "";
     if(vState.is_auto) basic_state +="AUTO   ";
     else basic_state +="MANUAL ";
@@ -427,8 +434,8 @@ int main(int argc, char** argv)
     else if(vState.gear == 2) basic_state +="REAR    ";
 
     if(vState.estop) basic_state+="!!ESTOP!!";
-    if(!vState.estop) cv::putText(monitor_img, basic_state, cv::Point(20, map_height*2+30), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
-    else cv::putText(monitor_img, basic_state, cv::Point(20, map_height*2+30), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,100,100));
+    if(!vState.estop) cv::putText(monitor_img, basic_state, cv::Point(20, map_height*2+23), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(250,250,250));
+    else cv::putText(monitor_img, basic_state, cv::Point(20, map_height*2+23), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,100,100));
 
     std::stringstream stream;
     double v_kmph = 3.6*vState.speed;
@@ -437,8 +444,8 @@ int main(int argc, char** argv)
     stream_brake << "Brake: " << vState.brake;
     std::string v_state = stream.str();
     std::string b_state = stream_brake.str();
-    cv::putText(monitor_img, v_state, cv::Point(20, map_height*2+50), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(250,250,250));
-    cv::putText(monitor_img, b_state, cv::Point(20, map_height*2+70), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(250,250,250));
+    cv::putText(monitor_img, v_state, cv::Point(20, map_height*2+41), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(250,250,250));
+    cv::putText(monitor_img, b_state, cv::Point(20, map_height*2+69), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(250,250,250));
 
 
     std::string basic_control = "";
@@ -497,6 +504,10 @@ int main(int argc, char** argv)
     cv::putText(monitor_img, "Control Mode", cv::Point(map_width*2+20, map_height*2+20), cv::FONT_HERSHEY_PLAIN, 1.0, control_mode_text_color);
     cv::putText(monitor_img, control_mode_text, cv::Point(map_width*2+20, map_height*2+40), cv::FONT_HERSHEY_PLAIN, 1.0, control_mode_text_color);
 
+    std::stringstream aeb_stream;
+    aeb_stream<<"E stop Count: "<<e_stop;
+    std:: string aeb_text = aeb_stream.str();
+    cv::putText(monitor_img, aeb_text, cv::Point(20, map_height*2+85), cv::FONT_HERSHEY_PLAIN, 0.8, control_mode_text_color);
     ros::Time current_time = ros::Time::now();
     ros::Duration to_now(current_time - init_time);
     std::stringstream time_stream;
@@ -512,7 +523,7 @@ int main(int argc, char** argv)
     publishMonitorImg.publish(msgMonitorImg);
 
     //adding it to the video record
-    outputMonitorVideo << monitor_img;
+    if(IS_RECORD)    outputMonitorVideo << monitor_img;
 
     ros::spinOnce();
     loop_rate.sleep();

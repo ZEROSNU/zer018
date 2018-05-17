@@ -28,67 +28,81 @@ def load_labels(label_file):
     
     
 M = cv2.getRotationMatrix2D((150,150), 90, 1)
-#img = np.zeros((864,480,3), dtype=np.uint8)
-
+output_img = np.zeros((1,299,299,3)).astype(float)
+new_image = False
 
 def imagecallback(msg):
     global output_img
+    global new_image
     img = bridge.imgmsg_to_cv2(msg, "bgr8")
-    # cv2.imshow('img', img)
     img = img[100:400, 300:600]
     img = cv2.warpAffine(img, M, (299,299))
     img = np.asarray(img).astype(float)
     img -= input_mean
     img /= input_std
     output_img = np.expand_dims(img, axis=0)
-    # cv2.waitKey(1)
+    new_image = True
+
 
 
 def main():
     global output_img
-    
+    global new_image
     with tf.Session(graph=graph) as sess:
+      previous_value = 0
+      previous_label = "nosign"
       while not rospy.is_shutdown():
         if rospy.get_param('/uturn_mode') ==0 and rospy.get_param('/park_mode')==0:
+          if new_image:
+            
+            init_time = time.time()
+            results = sess.run(output_operation.outputs[0],
+                                {input_operation.outputs[0]: output_img})
+            end=time.time()
+            results = np.squeeze(results)
+            top_k = results.argsort()[-5:][::-1]
+            
+            top_label = labels[top_k[0]]
+            top_value = results[top_k[0]]
 
-          
-          init_time = time.time()
-          results = sess.run(output_operation.outputs[0],
-                              {input_operation.outputs[0]: output_img})
-          end=time.time()
-          results = np.squeeze(results)
-          top_k = results.argsort()[-5:][::-1]
-          
+            if top_value>0.9:
+              print("Detected!!!!!! ", top_label)
+              if top_label == 'uturn':
+                rospy.set_param('/uturn_mode',1)
+              if top_label == 'park':
+                rospy.set_param('/park_mode',1)
 
-          if results[top_k[0]]>0.85:
-            traffic_sign = labels[top_k[0]]
-            print('\nEvaluation time: {}, Sign: {}'.format((end-init_time), traffic_sign))
-            if traffic_sign == 'uturn':
-              rospy.set_param('/uturn_mode',1)
-            if traffic_sign == 'park':
-              rospy.set_param('/park_mode',1)
-          else:
-            print('\nEvaluation time: {}, Sign: Low Confidence!'.format((end-init_time)))
-          
-          for i in top_k:
-              print(labels[i], results[i])
+            elif top_value >=0.85:
+              if previous_label == top_label and previous_value >= 0.85:
+                if top_label == 'uturn':
+                  rospy.set_param('/uturn_mode',1)
+                if top_label == 'park':
+                  rospy.set_param('/park_mode', 1)
+            else:
+              print("Low Confidence!")
+            
+            previous_value = top_value
+            previous_label = top_label
+            
+            for i in top_k:
+                print(labels[i], results[i])
 
-          print("Time taken: ", time.time()-init_time) 
-        cv2.waitKey(1)
+            print("Time taken: ", time.time()-init_time) 
+            new_image = False
 
 
 if __name__=="__main__":
   bridge = CvBridge()
   rospy.init_node('traffic_cam_node', anonymous=True)
   current_time = str(time.time())
-  label_file = "traffic_labels.txt"
+  label_file = "/home/snuzero/traffic_labels.txt"
   input_height = 299
   input_width = 299
   input_mean = 128
   input_std = 128
   input_layer = "Mul"
   output_layer = "final_result"
-  graph = load_graph('final_retrained_graph_traffic.pb')
+  graph = load_graph('/home/snuzero/final_retrained_graph_traffic.pb')
 
   labels = load_labels(label_file)
   input_name = "import/" + input_layer

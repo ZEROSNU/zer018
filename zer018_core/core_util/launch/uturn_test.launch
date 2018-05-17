@@ -1,9 +1,9 @@
 <launch>
   <node pkg = "lms1xx" type="LMS1xx_node" name="lms1xx" output="screen"/>
   <node pkg = "lms_client" type="lms_client" name="lms_client" args="false"/>
-  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false"/>
+  <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false false"/>
   <node name="astar_planner" pkg="astar_planner" type="path_planner"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false true"/>
 
   <param name = "uturn_mode" value = "2" />
   <node name="camera_node" pkg="lane_vision" type="camera_node.py"/>

@@ -19,10 +19,7 @@ Z_DEBUG = False
 Z_SEND_ESTOP = True
 Z_BLUE_MASKING = False
 Z_VIEW_TIMETAKEN = False
-<<<<<<< HEAD
 Z_IGNORE_FIRST_LINE = False
-=======
->>>>>>> 2a35c802fe07c00846e5da8c95689d548c827f4f
 USE_HoughLines = False #HoughLines : True / HoughLinesP : False
 
 
@@ -54,11 +51,7 @@ pub = rospy.Publisher('/emergency_stop', Estop, queue_size=10)
 ###########################################
 
 def init():
-<<<<<<< HEAD
     
-=======
-
->>>>>>> 2a35c802fe07c00846e5da8c95689d548c827f4f
     #pub = rospy.Publisher('/emergency_stop', Estop, queue_size=10)
     rospy.Subscriber("warped_image", Image, callback)
     rospy.init_node('stopline', anonymous=True)
@@ -71,21 +64,14 @@ def init():
             rospy.spin()
 
 def SendEstop(msg):
-    msg.header.stamp = rospy.Time.now()
     msg.estop = 1
     cnt = 1
-<<<<<<< HEAD
-    while(cnt <= 100):
+    while(cnt <= 40):
         if Z_DEBUG:
             print "sending estop sign : " + str(cnt)
-        time.sleep(0.1)
-=======
-    while(cnt <= 200):
-        if Z_DEBUG:
-            print "sending estop sign : " + str(cnt)
-        time.sleep(0.02)
->>>>>>> 2a35c802fe07c00846e5da8c95689d548c827f4f
+        msg.header.stamp = rospy.Time.now()
         pub.publish(msg)
+        time.sleep(0.1)
         cnt = cnt+1
     rospy.signal_shutdown("succesfully sended ESTOP sign")
 
@@ -160,7 +146,8 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
     lines = cv2.HoughLinesP(edge, 1, np.pi / 180, 10, minLineLength=50, maxLineGap=20)
     detect_count = 0
     detected_points_x = np.array([])
-    if True:
+    
+    if np.size(lines)>1:
         for x1, y1, x2, y2 in lines[:, 0]:
             
             angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
@@ -182,14 +169,9 @@ def DrawHoughLinesP(edge, img): #edge: edge input, img : image on which draw lin
         
         if detect_count >= MIN_DETECTED_THRESHOLD_P:
             filtered_x_points = reject_outliers(detected_points_x)
-<<<<<<< HEAD
             x_mean = int(np.mean(filtered_x_points))
             if(np.size(filtered_x_points) >= 4) and x_mean <= 200:
                 cv2.circle(img, (x_mean, int(np.shape(img)[0]/2)),3,(255,0,0),3,1)
-=======
-            if(np.size(filtered_x_points) >= 4):
-                cv2.circle(img, (int(np.mean(filtered_x_points)), int(np.shape(img)[0]/2)),3,(255,0,0),3,1)
->>>>>>> 2a35c802fe07c00846e5da8c95689d548c827f4f
                 detected = True
             else:
                 detected = False
@@ -229,7 +211,6 @@ def callback(data):
             print("stopline detected!")
 
         if Z_SEND_ESTOP:
-<<<<<<< HEAD
             if Z_IGNORE_FIRST_LINE:
                 global stop_time_stamp
                 global first_line_toggle
@@ -247,9 +228,6 @@ def callback(data):
                     first_line_toggle = True
             else:
                 SendEstop(msg)
-=======
-            SendEstop(msg)
->>>>>>> 2a35c802fe07c00846e5da8c95689d548c827f4f
 
     if Z_DEBUG:
         cv2.imshow('img', img)

@@ -18,13 +18,23 @@ const int Node3D::dir = 3;
 
 
 //This works quite well
+// dl = 3.3, 10 DEG
 // const float Node3D::dy[] = { 0,        -0.287613,  0.287613};
 // const float Node3D::dx[] = { 3.3,   3.287442,   3.287442};
 // const float Node3D::dt[] = { 0,         0.174533,   -0.174533};//in rad
 
-const float Node3D::dy[] = { 0,        -0.479355,  0.479355};
-const float Node3D::dx[] = { 5.5,   5.47907,   5.47907};
-const float Node3D::dt[] = { 0,         0.174533,   -0.174533};//in rad
+// dl = 4.4, 15 DEG
+// const float Node3D::dy[] = { 0,        -1.1388,  1.1388};
+// const float Node3D::dx[] = { 4.4,   4.25,   4.25};
+// const float Node3D::dt[] = { 0,         0.261799,   -0.261799};//in rad
+const float Node3D::dy[] = { -1.1388, 0, 1.1388};
+const float Node3D::dx[] = { 4.25,   4.4,  4.25};
+const float Node3D::dt[] = { 0.261799,   0,   -0.261799};//in rad
+
+
+// const float Node3D::dy[] = { 0,        -0.479355,  0.479355};
+// const float Node3D::dx[] = { 5.5,   5.47907,   5.47907};
+// const float Node3D::dt[] = { 0,         0.174533,   -0.174533};//in rad
 
 
 // R = 3, 6.75 DEG
