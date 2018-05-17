@@ -305,13 +305,13 @@ def imagecallback(msg):
             x_waypoint = np.cos(theta[projection_point]-np.pi/2)*lane_width/4 +projection_point
             y_waypoint = np.sin(theta[projection_point]-np.pi/2)*lane_width/4 +f(projection_point)
 
-    elif rospy.get_param('uturn_mode')==1:
-        if type(theta)==np.float64:
-            x_waypoint = np.cos(theta-np.pi/2)* 2*(lane_width/3) +projection_point
-            y_waypoint = np.sin(theta-np.pi/2) * 2*lane_width/3 + f(projection_point)
-        else:
-            x_waypoint = np.cos(theta[projection_point]-np.pi/2)*2*lane_width/3 +projection_point
-            y_waypoint = np.sin(theta[projection_point]-np.pi/2)*2*lane_width/3 +f(projection_point)
+    # elif rospy.get_param('uturn_mode')==1:
+    #     if type(theta)==np.float64:
+    #         x_waypoint = np.cos(theta-np.pi/2)*(lane_width/2) +projection_point
+    #         y_waypoint = np.sin(theta-np.pi/2) *lane_width/2 + f(projection_point)
+    #     else:
+    #         x_waypoint = np.cos(theta[projection_point]-np.pi/2)*lane_width/3 +projection_point
+    #         y_waypoint = np.sin(theta[projection_point]-np.pi/2)*lane_width/3 +f(projection_point)
         
     else:
         if type(theta)==np.float64:
