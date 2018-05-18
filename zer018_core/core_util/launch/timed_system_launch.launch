@@ -1,6 +1,6 @@
 <launch>
   <node name="path_tracker" pkg = "path_tracker" type = "path_tracker_new.py" output="screen" respawn="true"/>
   <node name="astar_planner" pkg="astar_planner" type="path_planner" respawn="true"/>
-  <node name = "traffic_camera_node" pkg = "zero_mission" type = "traffic_camera_node.py"/>
+  <node name = "traffic_camera_node" pkg = "zero_mission" type = "traffic_camera_node.py" respawn="true"/>
   <node pkg = "occupancy_map" type="occupancy_map" name ="occupancy_map" args="false true" output="screen"  respawn="true"/>
 </launch>

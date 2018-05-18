@@ -35,7 +35,7 @@ def imagecallback(msg):
     global output_img
     global new_image
     img = bridge.imgmsg_to_cv2(msg, "bgr8")
-    img = img[100:400, 300:600]
+    img = img[100:300, 300:500]
     img = cv2.warpAffine(img, M, (299,299))
     img = np.asarray(img).astype(float)
     img -= input_mean

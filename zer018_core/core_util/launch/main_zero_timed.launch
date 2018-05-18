@@ -7,13 +7,13 @@
   <node name="ser_com" pkg="zero_serial" type = "serial_com.py" respawn="true"/>
   <node name="camera_node" pkg="lane_vision" type="camera_node.py"  respawn="true"/>
   <node name="lane_detect" pkg="lane_vision" type="lane_detect.py"  respawn="true"/>
-  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false true"  respawn="true"/>
+  <node name="zero_monitor" pkg="zero_monitor" type="zero_monitor" args="false false true"  respawn="true" output = "screen"/>
 
 
   <node pkg="core_util" type="timed_roslaunch.sh" args="4 core_util timed_system_launch.launch"
     name="timed_system_launch" output="screen" />
 
-  <node name="stopline" pkg = "zero_mission" type = "stopline.py" output = "screen"/>
+  <!-- <node name="stopline" pkg = "zero_mission" type = "stopline.py" output = "screen"/> -->
 
 
   <node name="record" pkg = "rosbag" type ="record" args ="-o /home/snuzero/bagfiles/ /control /emergency_stop /end_system

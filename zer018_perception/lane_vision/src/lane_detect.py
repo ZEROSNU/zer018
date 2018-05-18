@@ -31,7 +31,7 @@ if Z_DEBUG:
     lower_white_hsv = np.array([50, 40, 0], np.uint8) 
     upper_white_hsv = np.array([100, 255, 255], np.uint8)
 else:
-    lower_white_hsv = np.array([0,0,200], np.uint8)
+    lower_white_hsv = np.array([0,0,170], np.uint8)
     upper_white_hsv = np.array([255,50,255], np.uint8)
 
 lower_white_rgb = np.array([190,190,190], np.uint8)
@@ -299,8 +299,8 @@ def imagecallback(msg):
     #array vs float
     if rospy.get_param('park_mode')==1:
         if type(theta)==np.float64:
-            x_waypoint = np.cos(theta-np.pi/2)*(lane_width/3) +projection_point
-            y_waypoint = np.sin(theta-np.pi/2) * lane_width/3 + f(projection_point)
+            x_waypoint = np.cos(theta-np.pi/2)*(lane_width/2.5) +projection_point
+            y_waypoint = np.sin(theta-np.pi/2) * lane_width/2.5 + f(projection_point)
         else:
             x_waypoint = np.cos(theta[projection_point]-np.pi/2)*lane_width/4 +projection_point
             y_waypoint = np.sin(theta[projection_point]-np.pi/2)*lane_width/4 +f(projection_point)
@@ -474,6 +474,13 @@ def imagecallback(msg):
         laneinfo.confidence = confidence
         laneinfo.header.stamp = rospy.Time.now()
         pub_waypoint.publish(laneinfo)
+    else: 
+        if rospy.get_param('/uturn_mode')==1 or rospy.get_param('/uturn_mode')==2:
+            laneinfo.x_waypoint = 3
+            laneinfo.y_waypoint = 0
+            laneinfo.confidence = 3
+            laneinfo.header.stamp = rospy.Time.now()
+            pub_waypoint.publish(laneinfo)
 
     # parkinfo.initpoints = [Vector3(point1[0]/100., (point1[1]-300)/100., 0), \
     #                                      Vector3(point2[0]/100., (point2[1]-300)/100., 0)]
@@ -487,10 +494,10 @@ def imagecallback(msg):
 
     print("Time: ", time.time()-init_time)
     # cv2.imshow('img', img)
-    # cv2.imshow('white mask', white_mask)
+    cv2.imshow('white mask', white_mask)
 
     # cv2.imshow('mask', masked_img)
-    # cv2.imshow('mask', yellow_mask)
+    cv2.imshow('mask', yellow_mask)
     # cv2.imshow('red_mask', red_mask)
     cv2.waitKey(1)
 

@@ -193,7 +193,7 @@ void callbackMain(const sensor_msgs::ImageConstPtr& msg_map, Astar& astar)
 {
   if(Z_DEBUG && flag_obstacle!=0)  std::cout << "------------------------------------------------------------------" << std::endl;
   if(flag_obstacle==0) {
-    std::cout<<flag_obstacle<<std::endl;
+    // std::cout<<flag_obstacle<<std::endl;
     return;
   }
   if(target_x <= 0 && target_y <= 0) {

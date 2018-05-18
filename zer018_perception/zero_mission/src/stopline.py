@@ -24,7 +24,7 @@ USE_HoughLines = False #HoughLines : True / HoughLinesP : False
 
 
 
-lower_white_hsv = np.array([0,0,220], np.uint8)
+lower_white_hsv = np.array([0,0,170], np.uint8)
 upper_white_hsv = np.array([255,50,255], np.uint8)
 stop_time_stamp = 0
 first_line_toggle = False

@@ -112,12 +112,12 @@ void mapInit(cv::FileStorage& params_config) {
 }
 
 bool isOccupied(float x, float y) {
-  std::cout <<" is Occupied Called!" <<std::endl;
+  // std::cout <<" is Occupied Called!" <<std::endl;
   //x, y is in meter
   double cx = -y;
   double cy = x-map_offset;
   double r = sqrt(cx*cx + cy*cy);
-  std::cout<<"r is "<< r<<std::endl;
+  // std::cout<<"r is "<< r<<std::endl;
   double theta = atan2(cy, cx);
   for(int i= obstacle_points.size()-1; i>=0;i--){
     //cout<<"HERE"<<endl;
@@ -315,7 +315,7 @@ void findTargetInOneRow(int & target_x, int & target_y, int row_index) {
   else final_free_right = index_lane_right[index_final_free + 1];
   if(final_free == 0) {
     findTargetInOneRow(target_x, target_y, row_index+1);
-    std::cout<<"going to next row -second cond."<<std::endl;
+    // std::cout<<"going to next row -second cond."<<std::endl;
   }
   else {
     target_x = (final_free_left + final_free_right)/ 2;
@@ -323,7 +323,7 @@ void findTargetInOneRow(int & target_x, int & target_y, int row_index) {
     return;
   }
   if(final_free == 0 && row_index >=50) {
-    std::cout<< "invalid target" << std::endl;
+    // std::cout<< "invalid target" << std::endl;
     target_x = -1;//target invalid
     target_y = -1;
     return;

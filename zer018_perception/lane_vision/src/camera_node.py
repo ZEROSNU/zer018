@@ -10,17 +10,17 @@ import os
 CAMERA NODE RUNNING AT FULL SPEED
 NO IMAGE RECORDING
 '''
-homography_front = np.array([[2.13765345196850e-05, -0.000211726656557926,  0.702602123668101],
-        [-0.00102774251299299, 0.00260340110149367, 0.711576851641332],
-        [6.02432033984543e-08, 8.72325801268361e-06, 0.000872188101813778]])
+homography_front = np.array([[-2.05331643624101e-05, 0.000184132295413469, -0.699064191906272], 
+        [0.00102341990877729, -0.00263173475367660, -0.715052779552409], 
+        [-8.43648220876611e-08, -8.78141556624972e-06, -0.000877627055809022]]) 
 
-homography_left = np.array([[0.000737881208550184, -0.000126764660419848, 0.107536755771003],
-        [-0.000542698763888258,  0.00203870520069405, 0.994198308229887],
-        [1.70955845154753e-07, 7.51794310890060e-06, 0.000747419379244623]])
+homography_left = np.array([[0.000737380133969737, -0.000136328436080944, 0.116358315415000], 
+        [-0.000471814369206018, 0.00212286060165246, 0.993204346461678], 
+        [4.57755593803215e-07, 7.72016705325549e-06, 0.000759659637608730]]) 
 
-homography_right = np.array([[-0.000944650403927489, 1.09698390567348e-05, 0.978594031199282],
-        [-0.000947378147954755, 0.00344527515140941, -0.205766984183079],
-        [-3.38344131652299e-07, 1.12786460626800e-05, 0.000101306807721471]])
+homography_right = np.array([[-0.000931392044091606, -8.92582302704076e-06, 0.987151997678937], 
+        [-0.000996406850370031, 0.00342765940416170, -0.159741289479278], 
+        [-4.46662185662202e-07, 1.12175943545122e-05, 0.000211048660113606]])
 
 
 
@@ -49,8 +49,10 @@ def imagePublisher():
         _, left_img = cam_left.read()
         _, right_img = cam_right.read()
         _, traffic_img = traffic_cam.read()
+        curr_time = time.time()
         # cv2.imshow('traffic_img', traffic_img)
-
+        path = "/home/snuzero/extra_traffic_data/"
+        cv2.imwrite(path + str(curr_time) + ".jpg", traffic_img)
 
         im_front = warp_image(front_img, homography_front).astype('uint8')
         im_left = warp_image(left_img, homography_left).astype('uint8')
@@ -94,7 +96,7 @@ if __name__ == '__main__':
             cam_right.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
             cam_right.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             cam_right.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))
-            traffic_cam = cv2.VideoCapture(4)
+            traffic_cam = cv2.VideoCapture(5)
             traffic_cam.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
             traffic_cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             traffic_cam.set(cv2.CAP_PROP_FOURCC, int(0x47504A4D))

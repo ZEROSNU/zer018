@@ -58,7 +58,8 @@ class tracker :
             self.lpf_dt_cutoff = 10
 
             self.steer_max = 28.1 #degree, this is for uturning ################### added
-            self.uturn_end = 200 #degree, turn 180 degree in uturning ####################### added
+            # self.uturn_end = 100
+            self.uturn_end = 280 #degree, turn 180 degree in uturning ####################### added
             self.goal_reach_distance = 0.5
 
             #JUNHO
@@ -301,7 +302,10 @@ class tracker :
             
             else:
                   self.control.steer = self.control.steer * self.steer_p_final_max
-                  steer_sign = self.control.steer / abs(self.control.steer)
+                  if self.control.steer is not 0:
+                        steer_sign = self.control.steer / abs(self.control.steer)
+                  else:
+                        steer_sign = 1
                   curve_param = 0.56
                   self.control.steer = steer_sign * (28**(1.0-curve_param)) * abs(self.control.steer)**curve_param
                   if self.control.steer > 3.0:
@@ -377,7 +381,7 @@ class tracker :
                   v.x = self.map_width/2 - pathpoint_i.y / self.map_resolution
 
                   if i_count == 0:
-                        print v.x, ", ", v.y
+                        # print v.x, ", ", v.y
                         if not self.is_pathpoint_occupied(pathpoint_i.x, pathpoint_i.y):
                               temp_updated_sPath.pathpoints.append(v)
                   if is_no_red_before:
@@ -427,7 +431,7 @@ class tracker :
       def update_ppoint(self, _current_t):
             _past_t = self.pPoint.header.stamp.to_sec()
             if len(self.pPoint.initpoints) == 0:
-                  print "pPoint not received"
+                  # print "pPoint not received"
                   return False
             if _past_t > _current_t:
                   self.updated_pPoint = copy.deepcopy(self.pPoint)
@@ -528,7 +532,8 @@ class tracker :
 
             '''
             2. Updating the s-path and c-point according to vehicle odometry
-            '''
+            '''   
+
             #update s-path
             #erase s-path to empty object after a certain period of time
             #JUNHO: this does not work well in rosbag mdode because current_t is much more current than the stamp
@@ -580,9 +585,9 @@ class tracker :
                         if self.uturn_angle > self.uturn_end:      
                               if Z_DEBUG:
                                     print "control mode: u-turning end, C point tracking start"
-                                    uturn_mode = 0
+                              uturn_mode = 0
                               rospy.set_param("uturn_mode", 0)
-                              self.uturn_angle = 0
+                              # self.uturn_angle = 0
                               temp_control_mode = Control_mode.NORMAL_C
                         else :
                               # if Z_DEBUG:
