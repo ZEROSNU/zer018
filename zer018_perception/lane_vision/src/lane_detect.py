@@ -12,21 +12,22 @@ from core_msgs.msg import CenPoint, ParkPoints
 from geometry_msgs.msg import Vector3
 import copy
 
+'''
+MAIN LOGIC FOR LANE DETECTION. 
+INPUT: Image of Top-Down stitched image from 3 lane cameras
+OUTPUT: 1) Lane information in core_msgs/CenPoint Format, 
+        2) Free and occupied space in transformed coordinates for the path planner, in sensor_msgs/Image mono8 image format
+        3) (Only when rosparam park_mode is 1) Information regarding the parking spot in core_msgs/ParkPoints format.
+'''
 
-'''
-BEST WORKING CODE
-'''
 Z_DEBUG = False
 
-# parking_mode = True
-# uturn_mode = 1
 
 # define values boundaries for color
 lower_yellow = np.array([15,40,150],np.uint8)
 upper_yellow = np.array([40,255,255],np.uint8)
-# lower_white_hsv = np.array([0, 0, 150], np.uint8)
 
-#DUBUGGING! GREEN 
+#DUBUGGING! GREEN (Used when working at Idea Factory)
 if Z_DEBUG:
     lower_white_hsv = np.array([50, 40, 0], np.uint8) 
     upper_white_hsv = np.array([100, 255, 255], np.uint8)
@@ -45,14 +46,14 @@ upper_red1 = np.array([10, 255,255], np.uint8)
 lower_red2 = np.array([160, 100,100], np.uint8)
 upper_red2 = np.array([179, 255,255], np.uint8)
 
-# hls_lower = np.array([0, 200, 0], np.uint8)
-# hls_upper = np.array([255,255, 150], np.uint8)
-
+# Define some buffers for filtering
 coeff_buffer = []
 outlier_count = 0
 x_waypoint_buffer = []
 y_waypoint_buffer = []
 
+# Define a simple logic that selects a confindence (which directly affects vehicle velocity) depending on how 
+# certain we are of our lane estimation
 def findConfidence(below_200, below_100, nolane, linearfit, small_data, previous_coeff):
     if (not below_200):
         if (previous_coeff):
@@ -88,6 +89,7 @@ def findConfidence(below_200, below_100, nolane, linearfit, small_data, previous
     confidence_val = np.min(confidence)
     return confidence_val
 
+# Simple method that calculates R-squared value of data
 def calculate_rsquared(x, y, f):
     yhat = f(x)
     if (len(y) != 0):
@@ -102,13 +104,16 @@ def calculate_rsquared(x, y, f):
         rsquared = 0
     return rsquared
 
+# Applies canny edge and returns a cropped image
 def parking_detect(img, coefficients):
     edges = CannyEdge(img, 100, 200)
     edges = edges[:400, :550]
 
     return edges
 
-
+# Bulk of code. Imagecallback runs when this node receives an input from the camera node
+# Processes the image accordingly and extracts useful data
+# Also publishes all data
 def imagecallback(msg):
     global coeff_buffer
     global outlier_count

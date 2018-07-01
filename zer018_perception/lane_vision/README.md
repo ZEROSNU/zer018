@@ -1,4 +1,5 @@
-# lane_vision
+
+# WARNGING: THIS README IS OUTDATED!!!!
 
 Lane vision package folder for SNU ZERO Project
 Author: DongWan Kim, SeongGyun Kim
